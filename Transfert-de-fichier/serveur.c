@@ -10,7 +10,6 @@
 
 #define MAX_BUFFER_SIZE 16000 // taille du buffer qui me permet de récupérer le contenu du fichier à recevoir bloc par bloc. Vous pouvez changer cette valeur.
 
-
 int recvTCP(int socket,  const void * buffer, size_t length,
  unsigned int *nbBytesReceived, unsigned int * nbCallRcv, int bloc) {
   int rcvTot = 0;
@@ -65,8 +64,8 @@ int main(int argc, char *argv[])
   
   char messagesRecus[MAX_BUFFER_SIZE];
   int name_size = 0;
-  unsigned int nbTotalOctetsRecus = 0;
-  unsigned int nbAppelRecv = 0;
+  //unsigned int nbTotalOctetsRecus = 0;
+  //unsigned int nbAppelRecv = 0;
   int rcv = 0;
   int dsCv = 0;
   
@@ -77,18 +76,16 @@ int main(int argc, char *argv[])
   
   int max = ds;
   struct sockaddr_in addrC;
-socklen_t lgCv = sizeof(struct sockaddr_in);
- /* boucle pour le traitement itératif des clients */
+  socklen_t lgCv = sizeof(struct sockaddr_in);
+
+  /* boucle pour le traitement itératif des clients */
   while(1){
 
     settmp = set;
     select(max+1, &settmp, NULL, NULL, NULL);
-/*    fgetc(stdin);*/
+    /*    fgetc(stdin);*/
     for(int fd = 3; fd <= max; fd++) {
-      if(!FD_ISSET(fd, &settmp)) {
-        printf("Serveur : Continue, parce que je n'ai rien trouvé\n");
-        continue;
-      }
+
       if (fd == ds) {
         printf("Serveur : j'attends la demande d'un client (accept) \n");
         dsCv = accept(ds, (struct sockaddr *)&addrC, &lgCv);
@@ -109,72 +106,18 @@ socklen_t lgCv = sizeof(struct sockaddr_in);
         continue;
       }
       rcv = recv(dsCv, &name_size, sizeof(int), 0);
-/*        printf("Serveur : j'ai reçu au total %d octets avec %d appels à recv \n", nbTotalOctetsRecus, nbAppelRecv);*/
- // taille du nom de fichier
+      /*        printf("Serveur : j'ai reçu au total %d octets avec %d appels à recv \n", nbTotalOctetsRecus, nbAppelRecv);*/
+      // taille du nom de fichier
       printf("Serveur : taille nom de fichier reçue => '%d'\n",name_size);
 
       rcv = recv(dsCv, messagesRecus, name_size,0);
-       /* printf("Serveur : j'ai reçu au total %d octets avec %d appels à recv \n", nbTotalOctetsRecus, nbAppelRecv);*/
- // nom de fichier
+      
+      // nom de fichier
       printf("Serveur : nom de fichier reçue => '%s'\n", messagesRecus);
 
-      char* file_name = malloc((name_size*sizeof(char))+1);
-      strcpy(file_name, messagesRecus);
-      // je construis le chemin vers le fichier à créer.
-      char* filepath = malloc(name_size + 16); // ./reception/+nom fichier
-      filepath[0] = '\0';
-      strcat(filepath, "./reception/");
-      strcat(filepath, file_name);
-      
-      free(file_name);
-
-      FILE* file = fopen(filepath, "wb");
-      if(file == NULL){  // servez vous de cet exemple pour le traitement des erreurs. 
-        perror("Serveur : erreur ouverture fichier: \n");
-        free(filepath);
-        close (dsCv);
-        continue; // passer au client suivant 
-      }
-      free(filepath); // je n'en ia plus besoin.
-      long int file_size = 0; 
-      int contentReceived = 0; // Compte le nombre d'octets du fichier reçu
-
-      rcv = recv(dsCv, &file_size, sizeof(file_size), 0);
-      printf("Serveur : taille de fichier reçue => '%ld'\n", file_size);
-      // je reçois le contenu progressivement 
-      while(contentReceived < file_size){
-
-        char buffer[MAX_BUFFER_SIZE];
-        rcv = recv(dsCv, buffer, MAX_BUFFER_SIZE, 0);
-        nbAppelRecv++;
-        nbTotalOctetsRecus+=strlen(buffer);
-       // si pas d'erreurs, j'ai reçu rcv octets. Je dois les écire dans le fichier.
-        size_t written = fwrite(buffer, sizeof(char), rcv, file);
-        if(written < rcv){
-          perror("Serveur : Erreur a l'ecriture du fichier \n");
-          break; // je sors de la boucle d'écrture/réception.
-        }
-
-        contentReceived += strlen(buffer);
-      }
-
-    // fermeture du fichier à la fin de son écriture ou si erreur s'est produite.
-
-      fclose(file);
-      printf("Serveur : fin du dialogue avec le client, nombre total d'octets recus : %d,  recus en %d appels a recv \n", nbTotalOctetsRecus, nbAppelRecv );
-      nbAppelRecv=0;
-      nbTotalOctetsRecus=0;
-      close (dsCv);
-      if (rcv <= 0) {
-        FD_CLR(fd, &set);
-        close(fd);
-        printf("Serveur : Continue, client déconnecter, je recommence une boucle\n");
-        continue;
-      }
-    }
-    //je passe au client suivant.
-  }
+    } // End for
+  } // End while
 
   close (ds); // atteignable si on sort de la boucle infinie.
   printf("Serveur : je termine\n");
-}
+} // Fin du main
