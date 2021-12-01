@@ -11,6 +11,7 @@
 #define MAX_BUFFER_SIZE 16000  // taille du buffer temporaire pour la lecture de fichier. Vous pouvez définir une autre valeur.
 
 // dig -4 TXT +short o-o.myaddr.l.google.com @ns1.google.com
+//
 
 int sendTCP(int socket, const char * buffer, size_t length,
  unsigned int *nbBytesSent, unsigned int * nbCallSend) {

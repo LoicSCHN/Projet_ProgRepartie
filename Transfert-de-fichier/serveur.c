@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 
 #define MAX_BUFFER_SIZE 16000 // taille du buffer qui me permet de récupérer le contenu du fichier à recevoir bloc par bloc. Vous pouvez changer cette valeur.
+//
 
 int recvTCP(int socket,  const void * buffer, size_t length,
  unsigned int *nbBytesReceived, unsigned int * nbCallRcv, int bloc) {
@@ -64,8 +65,6 @@ int main(int argc, char *argv[])
   
   char messagesRecus[MAX_BUFFER_SIZE];
   int name_size = 0;
-  //unsigned int nbTotalOctetsRecus = 0;
-  //unsigned int nbAppelRecv = 0;
   int rcv = 0;
   int dsCv = 0;
   
