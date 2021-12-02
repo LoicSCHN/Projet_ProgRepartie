@@ -142,9 +142,9 @@ void * fonctionThread (void * params){
         continue;
       }
       rcv = recv(dsCv, &name_size, sizeof(int), 0);
-      /*        printf("Serveur : j'ai reçu au total %d octets avec %d appels à recv \n", nbTotalOctetsRecus, nbAppelRecv);*/
+      //printf("Serveur : j'ai reçu au total %d octets avec %d appels à recv \n", nbTotalOctetsRecus, nbAppelRecv);
       // taille du nom de fichier
-      //printf("Serveur : taille nom de fichier reçue => '%d'\n",name_size);
+      printf("Serveur : taille nom de fichier reçue => '%d'\n",name_size);
 
       rcv = recv(dsCv, messagesRecus, name_size,0);
       
@@ -197,9 +197,9 @@ int main(int argc, char * argv[]){
     int ds = socket(PF_INET, SOCK_STREAM, 0);
 
     if (ds == -1) {
-      printf("Client : pb creation socket\n");
-      exit(1); 
-    }
+        printf("Client : pb creation socket\n");
+        exit(1); 
+      }
 
     //printf("Client : creation de la socket : ok\n");
     
@@ -209,38 +209,46 @@ int main(int argc, char * argv[]){
     adrServ.sin_port = htons(atoi(port_serveur));
     socklen_t lgAdr = sizeof(struct sockaddr_in);
 
-    int conn = connect(ds,(struct sockaddr*) &adrServ, lgAdr);
-    if (conn <0) {
-      perror ("Client: pb au connect :");
-      close (ds); 
-      exit (1); 
-    }  
+    int conn = -1;
+
+    if(conn == -1){
+      conn = connect(ds,(struct sockaddr*) &adrServ, lgAdr);
+      if (conn <0) {
+        perror ("Client: pb au connect :");
+        close (ds); 
+        exit (1); 
+      }
+    }
+    
+
     //printf("Client : demande de connexion reussie \n");
 
     unsigned int nbTotOctetsEnvoyes = 0;
     unsigned int nbAppelSend = 0;
 
     // Envoie de la taille 
-    int name_size = strlen(nom_fichier) + 1;
-    int snd = sendTCP(ds, (char*)&name_size, sizeof(name_size), &nbTotOctetsEnvoyes, &nbAppelSend);
+    int nom_size = strlen(nom_fichier) + 1;
+    int snd = sendTCP(ds, (char*)&nom_size, sizeof(nom_size), &nbTotOctetsEnvoyes, &nbAppelSend);
     if (snd == -1) {
       printf("Client : send n'a pas fonctionné\n");
     }
     //printf("Client : j'ai envoyé au total %d octets avec %d appels à send \n",nbTotOctetsEnvoyes,  nbAppelSend) ;
-    //printf("Client : valeur envoyé => '%d'\n", name_size);
+    //printf("Client : valeur envoyé => '%d'\n", nom_size);
 
     // Envoie du mot clé 
-    snd = sendTCP(ds, (char*)nom_fichier, name_size, &nbTotOctetsEnvoyes, &nbAppelSend);
+    snd = sendTCP(ds, (char*)nom_fichier, nom_size, &nbTotOctetsEnvoyes, &nbAppelSend);
     if (snd == -1) {
       printf("Client : send n'a pas fonctionné\n");
     }
     //printf("Client : j'ai envoyé au total %d octets avec %d appels à send \n", nbTotOctetsEnvoyes,  nbAppelSend) ;
     //printf("Client : valeur envoyé => '%s'\n", nom_fichier);
     
-    close (ds);
+    
     //printf("Client : je termine\n");
+    close (ds);
 
   }
+  
 
   pthread_join(threads, NULL); 
 
