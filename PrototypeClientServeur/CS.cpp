@@ -1,7 +1,12 @@
-// Compilation : 
+// Compilation Lucas : 
 // g++ -c CS.cpp && g++ calculCC.o CS.o -o CS -lpthread
 // ./CS 6001 192.168.1.64 6002 P1
 // ./CS 6002 192.168.1.64 6001 P2
+
+// Compilation Loic : 
+// g++ -c CS.cpp && g++ calculCC.o CS.o -o CS -lpthread
+// ./CS 6001 172.18.18.209 6002 P1
+// ./CS 6002 172.18.18.209 6001 P2
 
 /*** TODO : Trouver le server affiche plusieurs fois un message recus ***/ 
 
@@ -161,40 +166,10 @@ void * fonctionThread (void * params){
   return 0; 
 }
 
+void client(char* ip_serveur,char* port_serveur,char* nom_fichier){
 
-int main(int argc, char * argv[]){
+  int ds = socket(PF_INET, SOCK_STREAM, 0);
 
-  if (argc < 5){
-    printf("utilisation: %s  numero_port ip_serveur port_serveur nom_fichier\n", argv[0]);
-    return 1;
-  }     
-
-  srand(time(NULL));
-
-  pthread_t threads;
-
-  struct paramsFonctionThread params; 
- 
-  params.idThread = 1; 
-  params.portS  = argv[1]; 
-
-
-  if (pthread_create(&threads, NULL, fonctionThread, &params) != 0){
-    perror("erreur creation thread");
-    exit(1);
-  }
-
-  // Client : 
-  char* ip_serveur = argv[2]; 
-  char* port_serveur = argv[3]; 
-  char* nom_fichier = argv[4]; 
-
-  // Mettre un client dans la boucle : 
-  while(1){ 
-    //std::cout<<"Message à envoyer : "; 
-    std::cin>>nom_fichier; 
-
-    int ds = socket(PF_INET, SOCK_STREAM, 0);
 
     if (ds == -1) {
         printf("Client : pb creation socket\n");
@@ -246,6 +221,42 @@ int main(int argc, char * argv[]){
     
     //printf("Client : je termine\n");
     close (ds);
+}
+
+
+int main(int argc, char * argv[]){
+
+  if (argc < 5){
+    printf("utilisation: %s  numero_port ip_serveur port_serveur nom_fichier\n", argv[0]);
+    return 1;
+  }     
+
+  srand(time(NULL));
+
+  pthread_t threads;
+
+  struct paramsFonctionThread params; 
+ 
+  params.idThread = 1; 
+  params.portS  = argv[1]; 
+
+
+  if (pthread_create(&threads, NULL, fonctionThread, &params) != 0){
+    perror("erreur creation thread");
+    exit(1);
+  }
+
+  // Client : 
+  char* ip_serveur = argv[2]; 
+  char* port_serveur = argv[3]; 
+  char* nom_fichier = argv[4]; 
+
+  // Mettre un client dans la boucle : 
+  while(1){ 
+    //std::cout<<"Message à envoyer : "; 
+    std::cin>>nom_fichier; 
+
+    client(ip_serveur, port_serveur ,nom_fichier);
 
   }
   
