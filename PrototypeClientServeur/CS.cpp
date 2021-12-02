@@ -176,7 +176,7 @@ void client(char* ip_serveur,char* port_serveur,char* nom_fichier){
       exit(1); 
     }
 
-    //printf("Client : creation de la socket : ok\n");
+    printf("Client : creation de la socket : ok\n");
     
     struct sockaddr_in adrServ;
     adrServ.sin_addr.s_addr = inet_addr(ip_serveur);
