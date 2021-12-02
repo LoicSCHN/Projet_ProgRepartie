@@ -1,7 +1,21 @@
 // Compilation Lucas : 
 // g++ -c CS.cpp && g++ calculCC.o CS.o -o CS -lpthread
+//
+// Double Run linux : 
 // ./CS 6001 192.168.1.64 6002 P1
 // ./CS 6002 192.168.1.64 6001 P2
+//
+// Double Run Mac
+// ./CS 6001 192.168.1.57 6002 P1
+// ./CS 6002 192.168.1.57 6001 P2
+//
+// IP Mac : 192.168.1.57
+// IP Linux : 192.168.1.64
+// 
+// Commande Mac : 
+// ./CS 6001 192.168.1.64 6002 P1
+// Commande Linux : 
+// ./CS 6002 192.168.1.57 6001 P1
 
 // Compilation Loic : 
 // g++ -c CS.cpp && g++ calculCC.o CS.o -o CS -lpthread
@@ -51,6 +65,7 @@ int sendTCP(int socket, const char * buffer, size_t length,
   int cpt = 0;
   while (sndTot < length) {
     sent = send(socket, (buffer)+sndTot, length - sndTot, 0);
+    //std::cout<<"send"<<std::endl;
     if (sent <= 0) {
       return sent;
     }
@@ -76,6 +91,7 @@ void * fonctionThread (void * params){
 
 
   int ds = socket(PF_INET, SOCK_STREAM, 0);
+ 
   if (ds == -1) {
     perror("Serveur : probleme creation socket\n");
     exit(1); 
@@ -101,7 +117,6 @@ void * fonctionThread (void * params){
     close (ds);
     exit (1);
   }
-  //printf("Serveur: mise en écoute : ok\n");
   
   char messagesRecus[MAX_BUFFER_SIZE];
   int name_size = 0;
@@ -117,46 +132,31 @@ void * fonctionThread (void * params){
   struct sockaddr_in addrC;
   socklen_t lgCv = sizeof(struct sockaddr_in);
 
-  //std::cout<<"Server : Start"<<std::endl; 
-
-  /* boucle pour le traitement itératif des clients */
+  /* boucle de traitement des messages recus */
   while(1){
 
     settmp = set;
     select(max+1, &settmp, NULL, NULL, NULL);
-    /*    fgetc(stdin);*/
-    for(int fd = 3; fd <= max; fd++) {
-
-      if (fd == ds) {
-        //printf("Serveur : j'attends la demande d'un client (accept) \n");
-        dsCv = accept(ds, (struct sockaddr *)&addrC, &lgCv);
-        if (dsCv < 0) { 
-          perror("Serveur : probleme accept :");
-          if(close(dsCv) == -1){
-            perror("Serveur : probleme close ");
-          }
-        } 
-        else {
-          FD_SET(dsCv, &set);
-          if( max < dsCv) {
-            max = dsCv;
-          }
-          //printf("Serveur : le client %s:%d est connecté  \n", inet_ntoa(addrC.sin_addr), htons(server.sin_port));
-        }
-        //printf("Serveur : Continue\n");
-        continue;
-      }
-      rcv = recv(dsCv, &name_size, sizeof(int), 0);
-      //printf("Serveur : j'ai reçu au total %d octets avec %d appels à recv \n", nbTotalOctetsRecus, nbAppelRecv);
-      // taille du nom de fichier
-      printf("Serveur : taille nom de fichier reçue => '%d'\n",name_size);
-
-      rcv = recv(dsCv, messagesRecus, name_size,0);
       
-      // nom de fichier
-      printf("Serveur : nom de fichier reçue => '%s'\n", messagesRecus);
+    // Accepter les message recus : 
+    dsCv = accept(ds, (struct sockaddr *)&addrC, &lgCv);
 
+    // ?? mdr
+    FD_SET(dsCv, &set);
+    if( max < dsCv) {
+      max = dsCv;
     }
+    
+    // Reception de la taille du message
+    rcv = recv(dsCv, &name_size, sizeof(int), 0);
+
+    // Reception du message 
+    rcv = recv(dsCv, messagesRecus, name_size,0);
+    
+    // Afficher le message recus :
+    printf("Message recus => '%s'\n", messagesRecus);
+
+    //}
   }
 
   close (ds); // atteignable si on sort de la boucle infinie.
@@ -169,12 +169,12 @@ void * fonctionThread (void * params){
 void client(char* ip_serveur,char* port_serveur,char* nom_fichier){
 
   int ds = socket(PF_INET, SOCK_STREAM, 0);
+  //std::cout<<"ds : "<<ds<<std::endl; 
 
-
-    if (ds == -1) {
-        printf("Client : pb creation socket\n");
-        exit(1); 
-      }
+  if (ds == -1) {
+      printf("Client : pb creation socket\n");
+      exit(1); 
+    }
 
     //printf("Client : creation de la socket : ok\n");
     
@@ -194,7 +194,6 @@ void client(char* ip_serveur,char* port_serveur,char* nom_fichier){
         exit (1); 
       }
     }
-    
 
     //printf("Client : demande de connexion reussie \n");
 
@@ -221,6 +220,7 @@ void client(char* ip_serveur,char* port_serveur,char* nom_fichier){
     
     //printf("Client : je termine\n");
     close (ds);
+    shutdown(ds, SHUT_WR); 
 }
 
 
@@ -253,7 +253,6 @@ int main(int argc, char * argv[]){
 
   // Mettre un client dans la boucle : 
   while(1){ 
-    //std::cout<<"Message à envoyer : "; 
     std::cin>>nom_fichier; 
 
     client(ip_serveur, port_serveur ,nom_fichier);
