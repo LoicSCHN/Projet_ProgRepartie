@@ -2,6 +2,8 @@
 // g++ -c CS.cpp && g++ calculCC.o CS.o -o CS -lpthread
 // ./CS 6001 192.168.1.64 6002 P1
 // ./CS 6002 192.168.1.64 6001 P2
+// Connect to mac : 
+// ./CS 6002 192.168.1.57 6001 P1
 
 // Compilation Loic : 
 // g++ -c CS.cpp && g++ calculCC.o CS.o -o CS -lpthread
@@ -221,6 +223,7 @@ void client(char* ip_serveur,char* port_serveur,char* nom_fichier){
     
     //printf("Client : je termine\n");
     close (ds);
+    shutdown(ds, SHUT_WR);
 }
 
 
