@@ -42,6 +42,12 @@
 
 #define MAX_BUFFER_SIZE 16000
 
+bool token = false;
+bool demande = false; 
+
+char* suivant ;
+char* pere = strdup("");
+
 int recvTCP(int socket,  const void * buffer, size_t length,
  unsigned int *nbBytesReceived, unsigned int * nbCallRcv, int bloc) {
   int rcvTot = 0;
@@ -79,19 +85,28 @@ int sendTCP(int socket, const char * buffer, size_t length,
 }
 
 
-struct paramsFonctionThread {
+struct paramsFonctionReceveur {
   int idThread;
   char* portS; 
+  
+};
+
+struct paramsFonctionEmetteur {
+  int idThread;
+  char* ip; 
+  char* port;
+
+  
 };
 
 
-void * fonctionThread (void * params){
+void * fonctionThreadReceveur (void * params){
 
-  struct paramsFonctionThread * args = (struct paramsFonctionThread *) params;
+  struct paramsFonctionReceveur * args = (struct paramsFonctionReceveur *) params;
 
 
   int ds = socket(PF_INET, SOCK_STREAM, 0);
- 
+
   if (ds == -1) {
     perror("Serveur : probleme creation socket\n");
     exit(1); 
@@ -137,7 +152,7 @@ void * fonctionThread (void * params){
 
     settmp = set;
     select(max+1, &settmp, NULL, NULL, NULL);
-      
+
     // Accepter les message recus : 
     dsCv = accept(ds, (struct sockaddr *)&addrC, &lgCv);
 
@@ -152,8 +167,13 @@ void * fonctionThread (void * params){
 
     // Reception du message 
     rcv = recv(dsCv, messagesRecus, name_size,0);
-    
-    // Afficher le message recus :
+    // if(messagesRecus == "token"){
+    //   // rcvToken();
+    // }
+    // else if(messagesRecus == "demande"){
+    //   // rcvDemande();
+    // }
+    //Afficher le message recus :
     printf("Message recus => '%s'\n", messagesRecus);
 
     //}
@@ -166,102 +186,119 @@ void * fonctionThread (void * params){
   return 0; 
 }
 
-void client(char* ip_serveur,char* port_serveur,char* nom_fichier){
+
+
+void* fonctionThreadEmetteur (void * params){
+ struct paramsFonctionEmetteur * args = (struct paramsFonctionEmetteur *) params;
+
+ char* nom_fichier = strdup(""); 
+ while(1){
+  std::cin>>nom_fichier; 
+
 
   int ds = socket(PF_INET, SOCK_STREAM, 0);
   //std::cout<<"ds : "<<ds<<std::endl; 
 
   if (ds == -1) {
-      printf("Client : pb creation socket\n");
-      exit(1); 
-    }
+    printf("Client : pb creation socket\n");
+    exit(1); 
+  }
 
-    //printf("Client : creation de la socket : ok\n");
+
+
+  struct sockaddr_in adrServ;
+  adrServ.sin_addr.s_addr = inet_addr(args->ip);
+  adrServ.sin_family = AF_INET;
+  adrServ.sin_port = htons(atoi(args->port));
+  socklen_t lgAdr = sizeof(struct sockaddr_in);
+
+  int conn = -1;
+
+  if(conn == -1){
+    conn = connect(ds,(struct sockaddr*) &adrServ, lgAdr);
+    if (conn <0) {
+      perror ("Client: pb au connect :");
+      close (ds); 
+      exit (1); 
+    }
+  }
+
     
-    struct sockaddr_in adrServ;
-    adrServ.sin_addr.s_addr = inet_addr(ip_serveur);
-    adrServ.sin_family = AF_INET;
-    adrServ.sin_port = htons(atoi(port_serveur));
-    socklen_t lgAdr = sizeof(struct sockaddr_in);
 
-    int conn = -1;
-
-    if(conn == -1){
-      conn = connect(ds,(struct sockaddr*) &adrServ, lgAdr);
-      if (conn <0) {
-        perror ("Client: pb au connect :");
-        close (ds); 
-        exit (1); 
-      }
-    }
-
-    //printf("Client : demande de connexion reussie \n");
-
-    unsigned int nbTotOctetsEnvoyes = 0;
-    unsigned int nbAppelSend = 0;
+  unsigned int nbTotOctetsEnvoyes = 0;
+  unsigned int nbAppelSend = 0;
 
     // Envoie de la taille 
-    int nom_size = strlen(nom_fichier) + 1;
-    int snd = sendTCP(ds, (char*)&nom_size, sizeof(nom_size), &nbTotOctetsEnvoyes, &nbAppelSend);
-    if (snd == -1) {
-      printf("Client : send n'a pas fonctionné\n");
-    }
-    //printf("Client : j'ai envoyé au total %d octets avec %d appels à send \n",nbTotOctetsEnvoyes,  nbAppelSend) ;
-    //printf("Client : valeur envoyé => '%d'\n", nom_size);
+  int nom_size = strlen(nom_fichier) + 1;
+  int snd = sendTCP(ds, (char*)&nom_size, sizeof(nom_size), &nbTotOctetsEnvoyes, &nbAppelSend);
+  if (snd == -1) {
+    printf("Client : send n'a pas fonctionné\n");
+  }
+
 
     // Envoie du mot clé 
-    snd = sendTCP(ds, (char*)nom_fichier, nom_size, &nbTotOctetsEnvoyes, &nbAppelSend);
-    if (snd == -1) {
-      printf("Client : send n'a pas fonctionné\n");
-    }
-    //printf("Client : j'ai envoyé au total %d octets avec %d appels à send \n", nbTotOctetsEnvoyes,  nbAppelSend) ;
-    //printf("Client : valeur envoyé => '%s'\n", nom_fichier);
-    
-    
-    //printf("Client : je termine\n");
-    close (ds);
-    shutdown(ds, SHUT_WR); 
+  snd = sendTCP(ds, (char*)nom_fichier, nom_size, &nbTotOctetsEnvoyes, &nbAppelSend);
+  if (snd == -1) {
+    printf("Client : send n'a pas fonctionné\n");
+  }
+
+  close (ds);
+  shutdown(ds, SHUT_WR); 
 }
+}
+
 
 
 int main(int argc, char * argv[]){
 
-  if (argc < 5){
-    printf("utilisation: %s  numero_port ip_serveur port_serveur nom_fichier\n", argv[0]);
+  if (argc < 4){
+    printf("utilisation: %s  numero_port ip_serveur port_serveur \n", argv[0]);
     return 1;
   }     
 
   srand(time(NULL));
 
-  pthread_t threads;
+  pthread_t threadReceveur;
 
-  struct paramsFonctionThread params; 
- 
-  params.idThread = 1; 
-  params.portS  = argv[1]; 
+  pthread_t threadEmetteur;
+
+  struct paramsFonctionReceveur paramsReceveur; 
+
+  
+
+  paramsReceveur.idThread = 1; 
+  paramsReceveur.portS  = argv[1];
 
 
-  if (pthread_create(&threads, NULL, fonctionThread, &params) != 0){
-    perror("erreur creation thread");
+
+  struct paramsFonctionEmetteur paramsEmetteur; 
+  paramsEmetteur.idThread = 2;
+  paramsEmetteur.ip = argv[2];
+  paramsEmetteur.port = argv[3];
+
+
+  if (pthread_create(&threadReceveur, NULL, fonctionThreadReceveur, &paramsReceveur) != 0){
+    perror("erreur creation thread receveur");
     exit(1);
   }
+
+  if (pthread_create(&threadEmetteur, NULL, fonctionThreadEmetteur, &paramsEmetteur) != 0){
+    perror("erreur creation thread emetteur");
+    exit(1);
+  }
+
 
   // Client : 
   char* ip_serveur = argv[2]; 
   char* port_serveur = argv[3]; 
-  char* nom_fichier = argv[4]; 
+  char* nom_fichier = strdup(""); 
 
-  // Mettre un client dans la boucle : 
-  while(1){ 
-    std::cin>>nom_fichier; 
 
-    client(ip_serveur, port_serveur ,nom_fichier);
-
-  }
   
 
-  pthread_join(threads, NULL); 
+  pthread_join(threadReceveur, NULL); 
+  // pthread_join(threadEmetteur, NULL); 
 
   return 0;
- 
+
 }

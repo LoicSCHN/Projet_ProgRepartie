@@ -1,0 +1,61 @@
+Initialisation
+
+père := 1 
+suivant := nil 
+demande := faux 
+si père = i 
+	alors debut jeton-présent := vrai;
+	père := nil 
+	fin 
+sinon 
+	jeton-présent :=faux 
+finsi
+
+------------------------------------------------------
+
+Demande de la section critique par le processus i
+
+demande := vrai 
+si père = nil 
+	alors entrée en section critique 
+sinon 
+	début envoyer Req(i) à père;
+	père := nil 
+	fin 
+finsi
+
+------------------------------------------------------
+
+Procédure de fin d'utilisation de la section critique
+
+demande := faux;
+ si suivant not= nil 
+ 	alors début envoyer token à suivant;
+ 	jeton-présent := faux;
+ 	suivant := nil 
+ 	fin 
+ finsi 
+
+------------------------------------------------------
+
+Réception du message Req (k)(k est le demandeur)
+
+si père = nil 
+	alors 
+	si demande 
+		alors suivant := k 
+	sinon 
+		début jeton-présent := faux; 
+		envoyer token à k 
+	fin 
+	finsi 
+sinon envoyer req(k) à père 
+finsi; 
+
+père := k 
+
+------------------------------------------------------
+
+Réception du message Token
+
+jeton-présent := vrai 
