@@ -4,9 +4,6 @@
 // Double Run linux : 
 // ./CS 6001 192.168.1.64 6002 P1
 // ./CS 6002 192.168.1.64 6001 P2
-<<<<<<< HEAD
-// Connect to mac : 
-=======
 //
 // Double Run Mac
 // ./CS 6001 192.168.1.57 6002 P1
@@ -18,13 +15,12 @@
 // Commande Mac : 
 // ./CS 6001 192.168.1.64 6002 P1
 // Commande Linux : 
->>>>>>> a647988017bb9ede142ee6a8a39081b0c79e9454
 // ./CS 6002 192.168.1.57 6001 P1
 
 // Compilation Loic : 
 // g++ -c CS.cpp && g++ calculCC.o CS.o -o CS -lpthread
-// ./CS 6001 172.18.18.209 6002 P1
-// ./CS 6002 172.18.18.209 6001 P2
+// ./CS 6001 162.38.83.78 6002 P1
+// ./CS 6002 162.38.83.78 6001 P2
 
 /*** TODO : Trouver le server affiche plusieurs fois un message recus ***/ 
 
@@ -180,7 +176,7 @@ void client(char* ip_serveur,char* port_serveur,char* nom_fichier){
       exit(1); 
     }
 
-    printf("Client : creation de la socket : ok\n");
+    //printf("Client : creation de la socket : ok\n");
     
     struct sockaddr_in adrServ;
     adrServ.sin_addr.s_addr = inet_addr(ip_serveur);
@@ -224,11 +220,7 @@ void client(char* ip_serveur,char* port_serveur,char* nom_fichier){
     
     //printf("Client : je termine\n");
     close (ds);
-<<<<<<< HEAD
-    shutdown(ds, SHUT_WR);
-=======
     shutdown(ds, SHUT_WR); 
->>>>>>> a647988017bb9ede142ee6a8a39081b0c79e9454
 }
 
 
@@ -273,4 +265,3 @@ int main(int argc, char * argv[]){
   return 0;
  
 }
- 
