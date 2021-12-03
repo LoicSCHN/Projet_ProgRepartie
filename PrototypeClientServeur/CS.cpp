@@ -37,6 +37,8 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/ipc.h>
+#include <sys/sem.h>
 
 #include "calcul.h"
 
@@ -254,12 +256,15 @@ int main(int argc, char * argv[]){
 
   // ----------------------------SEMAPHORE-------------------------------------
 
+  int nombreDeSem = 2; 
+  int valeurInit = 1; 
+  char* pourCle = strdup("pourCle.txt"); 
+  int entierPourCle = 1; 
   
+  int clesem = ftok(pourCle, entierPourCle);
+
+  int nbSem = nombreDeSem;
   
-  int clesem = ftok(argv[3], atoi(argv[4]));
-
-  int nbSem = atoi(argv[1]);
-
   int idSem=semget(clesem, nbSem, IPC_CREAT | IPC_EXCL | 0600);
   
   if(idSem == -1){
@@ -274,7 +279,7 @@ int main(int argc, char * argv[]){
   // initialisation des sémaphores a la valeur passée en parametre (faire autrement pour des valeurs différentes ):
  
   ushort tabinit[nbSem];
-  for (int i = 0; i < nbSem; i++) tabinit[i] = atoi(argv[2]);;
+  for (int i = 0; i < nbSem; i++) tabinit[i] = valeurInit;;
  
 
   union semun{
