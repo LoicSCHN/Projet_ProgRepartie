@@ -90,6 +90,7 @@ int sendTCP(int socket, const char * buffer, size_t length,
 struct paramsFonctionReceveur {
   int idThread;
   char* portS; 
+  int idSem; 
   
 };
 
@@ -97,7 +98,7 @@ struct paramsFonctionEmetteur {
   int idThread;
   char* ip; 
   char* port;
-
+  int idSem; 
   
 };
 
@@ -246,7 +247,7 @@ void* fonctionThreadEmetteur (void * params){
 
   close (ds);
   shutdown(ds, SHUT_WR); 
-}
+  }
 }
 
 
@@ -265,11 +266,18 @@ int main(int argc, char * argv[]){
 
   int nbSem = nombreDeSem;
   
-  int idSem=semget(clesem, nbSem, IPC_CREAT | IPC_EXCL | 0600);
+  // On essaie de se connecter au tableau semaphores
+  int idSem=semget(clesem, nbSem, IPC_EXCL | 0600);
   
+  // Si il existe pas on le créé
   if(idSem == -1){
-    perror("erreur semget : ");
-    exit(-1);
+    //Création du tableau de sémaphores
+    idSem=semget(clesem, nbSem, IPC_CREAT | IPC_EXCL | 0600);
+    // Vérifier si le tableau à bien été créé
+    if(idSem == -1){
+      perror("erreur semget : ");
+      exit(-1);
+    }
   }
 
   printf("sem id : %d \n", idSem);
@@ -313,52 +321,41 @@ int main(int argc, char * argv[]){
 // ----------------------------Fin SEMAPHORE-------------------------------------
 
 
-
-
   if (argc < 4){
     printf("utilisation: %s  numero_port ip_serveur port_serveur \n", argv[0]);
     return 1;
   }     
 
-  srand(time(NULL));
-
+  // Création des deux threads Emetteur/Receveur
   pthread_t threadReceveur;
-
   pthread_t threadEmetteur;
 
+  // Déclaration des structures pour passer les paramètres aux deux threads
   struct paramsFonctionReceveur paramsReceveur; 
+  struct paramsFonctionEmetteur paramsEmetteur; 
 
-  
-
+  // Allocation des variables pour les paramètres du Receveur
   paramsReceveur.idThread = 1; 
   paramsReceveur.portS  = argv[1];
-
-
-
-  struct paramsFonctionEmetteur paramsEmetteur; 
+  paramsReceveur.idSem = idSem; 
+  
+  // Allocation des variables pour les paramètres de l'Emetteur
   paramsEmetteur.idThread = 2;
   paramsEmetteur.ip = argv[2];
   paramsEmetteur.port = argv[3];
+  paramsEmetteur.idSem = idSem; 
 
-
+  // Création du thread Receveur 
   if (pthread_create(&threadReceveur, NULL, fonctionThreadReceveur, &paramsReceveur) != 0){
     perror("erreur creation thread receveur");
     exit(1);
   }
 
+  // Création du thread Emetteur
   if (pthread_create(&threadEmetteur, NULL, fonctionThreadEmetteur, &paramsEmetteur) != 0){
     perror("erreur creation thread emetteur");
     exit(1);
   }
-
-
-  // Client : 
-  char* ip_serveur = argv[2]; 
-  char* port_serveur = argv[3]; 
-  char* nom_fichier = strdup(""); 
-
-
-  
 
   pthread_join(threadReceveur, NULL); 
   // pthread_join(threadEmetteur, NULL); 
