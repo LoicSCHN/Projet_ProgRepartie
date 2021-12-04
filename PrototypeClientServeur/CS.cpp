@@ -22,7 +22,7 @@
 // ./CS 6001 162.38.83.78 6002 P1
 // ./CS 6002 162.38.83.78 6001 P2
 
-/*** TODO : Trouver le server affiche plusieurs fois un message recus ***/ 
+/*** TODO : Trouver le server affiche plusieurs fois un message recus ***/
 
 #include <string.h>
 #include <stdio.h>
@@ -104,9 +104,7 @@ struct paramsFonctionEmetteur {
 
 
 void * fonctionThreadReceveur (void * params){
-
   struct paramsFonctionReceveur * args = (struct paramsFonctionReceveur *) params;
-
 
   int ds = socket(PF_INET, SOCK_STREAM, 0);
 
@@ -137,6 +135,8 @@ void * fonctionThreadReceveur (void * params){
   }
   
   char messagesRecus[MAX_BUFFER_SIZE];
+  std::string DEMANDE_RECUS = "D";
+  std::string TOKEN_RECUS = "T";
   int name_size = 0;
   int rcv = 0;
   int dsCv = 0;
@@ -159,7 +159,7 @@ void * fonctionThreadReceveur (void * params){
     // Accepter les message recus : 
     dsCv = accept(ds, (struct sockaddr *)&addrC, &lgCv);
 
-    // ?? mdr
+    // ??
     FD_SET(dsCv, &set);
     if( max < dsCv) {
       max = dsCv;
@@ -170,14 +170,40 @@ void * fonctionThreadReceveur (void * params){
 
     // Reception du message 
     rcv = recv(dsCv, messagesRecus, name_size,0);
-    // if(messagesRecus == "token"){
-    //   // rcvToken();
-    // }
-    // else if(messagesRecus == "demande"){
-    //   // rcvDemande();
-    // }
-    //Afficher le message recus :
-    printf("Message recus => '%s'\n", messagesRecus);
+
+    std::string msgRCV(messagesRecus); 
+
+    if(msgRCV == DEMANDE_RECUS){
+      // ------------------------------------------------------
+      // Réception du message Req (k)(k est le demandeur)
+
+      // si père = nil 
+      //   alors 
+      //   si demande 
+      //     alors suivant := k 
+      //   sinon 
+      //     début jeton-présent := faux; 
+      //     envoyer token à k 
+      //   fin 
+      //   finsi 
+      // sinon envoyer req(k) à père 
+      // finsi; 
+      // père := k 
+      std::cout<<"Demande recus !"<<std::endl; 
+    }
+    else if(msgRCV == TOKEN_RECUS){
+      // ------------------------------------------------------
+      // Réception du message Token
+
+      // jeton-présent := vrai 
+      std::cout<<"Token recus !"<<std::endl; 
+    }
+    else{
+      //Afficher le message recus :
+      //printf("Message recus => '%s'\n", messagesRecus);
+      std::cout<<"Message recus => "<<msgRCV<<std::endl;
+    }
+    
 
     //}
   }
@@ -195,6 +221,7 @@ void* fonctionThreadEmetteur (void * params){
  struct paramsFonctionEmetteur * args = (struct paramsFonctionEmetteur *) params;
 
  char* nom_fichier = strdup(""); 
+
  while(1){
   std::cin>>nom_fichier; 
 
@@ -206,8 +233,6 @@ void* fonctionThreadEmetteur (void * params){
     printf("Client : pb creation socket\n");
     exit(1); 
   }
-
-
 
   struct sockaddr_in adrServ;
   adrServ.sin_addr.s_addr = inet_addr(args->ip);
@@ -225,8 +250,6 @@ void* fonctionThreadEmetteur (void * params){
       exit (1); 
     }
   }
-
-    
 
   unsigned int nbTotOctetsEnvoyes = 0;
   unsigned int nbAppelSend = 0;
@@ -255,7 +278,7 @@ void* fonctionThreadEmetteur (void * params){
 int main(int argc, char * argv[]){
 
 
-  // ----------------------------SEMAPHORE-------------------------------------
+  // ----------------------- SEMAPHORE
 
   int nombreDeSem = 2; 
   int valeurInit = 1; 
@@ -318,7 +341,7 @@ int main(int argc, char * argv[]){
   printf("%d ] \n", valinit.array[nbSem-1]);
 
   free(valinit.array);
-// ----------------------------Fin SEMAPHORE-------------------------------------
+// ----------------------- Fin SEMAPHORE-------------------------------------
 
 
   if (argc < 4){
@@ -326,7 +349,22 @@ int main(int argc, char * argv[]){
     return 1;
   }     
 
-  // Création des deux threads Emetteur/Receveur
+  // ----------------------- Initialisation
+  // Initialisation
+
+  // père := 1 
+  // suivant := nil 
+  // demande := faux 
+  // si père = i // Soit meme
+  //   alors debut jeton-présent := vrai;
+  //   père := nil 
+  //   fin 
+  // sinon 
+  //   jeton-présent :=faux 
+  // finsi
+
+
+  // ----------------------- Création des deux threads Emetteur/Receveur
   pthread_t threadReceveur;
   pthread_t threadEmetteur;
 
