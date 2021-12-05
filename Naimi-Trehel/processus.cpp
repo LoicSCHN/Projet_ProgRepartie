@@ -2,8 +2,8 @@
 // g++ -c processus.cpp && g++ calculCC.o processus.o -o processus -lpthread
 
 // Double Run Mac mini  :
-// ./processus 6001 192.168.1.57 6002 P1
-// ./processus 6002 192.168.1.57 6001 P2
+// ./processus 192.168.1.57 6001 192.168.1.57 6002
+// ./processus 192.168.1.57 6002 192.168.1.57 6001
 
 #include <string.h>
 #include <stdio.h>
@@ -65,7 +65,6 @@ int sendTCP(int socket, const char * buffer, size_t length,
 
 struct paramsFonctionReceveur {
   int idThread;
-  char* portS; 
   int idSEM; 
   int idSHM; 
   
@@ -83,8 +82,13 @@ struct paramsFonctionEmetteur {
 struct uneChaine{ 
   bool token;
   bool demande; 
-  char* suivant;
-  char* pere;
+
+  char* ip;
+  char* port;
+  char* ipSuivant;
+  char* portSuivant; 
+  char* ipPere;
+  char* portPere; 
 }SHM;
 
 
@@ -99,12 +103,31 @@ void * fonctionThreadReceveur (void * params){
     exit(1); 
   }
 
+  // Attachement 
+  struct uneChaine * p_att;
+
+  p_att = (uneChaine *)shmat(args->idSHM, NULL, 0); 
+
+  if((void *)p_att == (void *)-1){
+    perror("shmat");
+  }
+
+  // std::cout<<p_att->token<<std::endl; 
+  // std::cout<<p_att->demande<<std::endl; 
+  // std::cout<<p_att->ip<<std::endl; 
+  // std::cout<<p_att->port<<std::endl; 
+  // std::cout<<p_att->ipSuivant<<std::endl; 
+  // std::cout<<p_att->portSuivant<<std::endl; 
+  // std::cout<<p_att->ipPere<<std::endl; 
+  // std::cout<<p_att->portPere<<std::endl; 
+
   //printf("Serveur : creation de la socket : ok\n");
 
   struct sockaddr_in server;
   server.sin_family = AF_INET;
   server.sin_addr.s_addr = INADDR_ANY;
-  server.sin_port = htons(atoi(args->portS));
+  //server.sin_port = htons(atoi(args->portS));
+  server.sin_port = htons(atoi(p_att->port));
 
   if(bind(ds, (struct sockaddr*)&server, sizeof(server)) < 0) {
     perror("Serveur : erreur bind");
@@ -189,9 +212,6 @@ void * fonctionThreadReceveur (void * params){
       //printf("Message recus => '%s'\n", messagesRecus);
       std::cout<<"Message recus => "<<msgRCV<<std::endl;
     }
-    
-
-    //}
   }
 
   close (ds); // atteignable si on sort de la boucle infinie.
@@ -206,6 +226,24 @@ void* fonctionThreadEmetteur (void * params){
  struct paramsFonctionEmetteur * args = (struct paramsFonctionEmetteur *) params;
 
  char* nom_fichier = strdup(""); 
+
+  // Attachement 
+  struct uneChaine * p_att;
+
+  p_att = (uneChaine *)shmat(args->idSHM, NULL, 0); 
+
+  if((void *)p_att == (void *)-1){
+    perror("shmat");
+  }
+
+  // std::cout<<p_att->token<<std::endl; 
+  // std::cout<<p_att->demande<<std::endl; 
+  // std::cout<<p_att->ip<<std::endl; 
+  // std::cout<<p_att->port<<std::endl; 
+  // std::cout<<p_att->ipSuivant<<std::endl; 
+  // std::cout<<p_att->portSuivant<<std::endl; 
+  // std::cout<<p_att->ipPere<<std::endl; 
+  // std::cout<<p_att->portPere<<std::endl; 
 
  while(1){
   std::cin>>nom_fichier; 
@@ -262,9 +300,19 @@ void* fonctionThreadEmetteur (void * params){
 
 int main(int argc, char * argv[]){
 
+  // Vérifier les paramètres
+  if (argc < 5){
+    printf("utilisation: %s  ip port pere_ip pere_port \n", argv[0]);
+    return 1;
+  }   
+
+  char * ipProcessus = argv[1]; 
+  char * portProcessus = argv[2]; 
+  char * ipPere = argv[3];
+  char * portPere = argv[4];  
+
 
   // ----------------------- SEMAPHORE
-
   int nombreDeSem = 2; 
   int valeurInit = 1; 
   char* pourCle = strdup("pourCle.txt"); 
@@ -290,10 +338,7 @@ int main(int argc, char * argv[]){
 
   //printf("sem id : %d \n", idSEM);
 
-
-  
-  // initialisation des sémaphores a la valeur passée en parametre (faire autrement pour des valeurs différentes ):
- 
+  // initialisation des sémaphores a la valeur passée en parametre (faire autrement pour des valeurs différentes):
   ushort tabinit[nbSem];
   for (int i = 0; i < nbSem; i++) tabinit[i] = valeurInit;;
  
@@ -346,34 +391,37 @@ int main(int argc, char * argv[]){
   if((void *)p_att == (void *)-1){
     perror("shmat");
   }
-  else {
-    std::cout<<"Ok"<<std::endl; 
-    p_att->token = false;
-    p_att->demande = false;
-    p_att->suivant = strdup("");  
-    p_att->pere = strdup(""); 
-  }
 
-
-
-  if (argc < 4){
-    printf("utilisation: %s  numero_port ip_serveur port_serveur \n", argv[0]);
-    return 1;
-  }     
+  p_att->ip = ipProcessus; 
+  p_att->port = portProcessus; 
 
   // ----------------------- Initialisation
-  // Initialisation
+  // père := 1
+  p_att->ipPere = ipPere; 
+  p_att->portPere = portPere; 
 
-  // père := 1 
   // suivant := nil 
+  p_att->ipSuivant = strdup(""); 
+  p_att->portSuivant = strdup(""); 
+  
   // demande := faux 
+  p_att->demande = false;
+
   // si père = i // Soit meme
-  //   alors debut jeton-présent := vrai;
-  //   père := nil 
-  //   fin 
+  if(std::string(ipPere) == std::string(ipProcessus) && std::string(portPere) == std::string(portProcessus)) {
+    std::cout<<"Je commence !"<<std::endl; 
+    //   alors debut jeton-présent := vrai;
+    p_att->token = true; 
+    //   père := null 
+    p_att->ipPere = strdup(""); 
+    p_att->portPere = strdup(""); 
+  }
   // sinon 
-  //   jeton-présent :=faux 
-  // finsi
+  else {
+    std::cout<<"Je commence pas !"<<std::endl; 
+    // jeton-présent :=faux 
+    p_att->token = false;
+  }
 
 
   // ----------------------- Création des deux threads Emetteur/Receveur
@@ -386,14 +434,14 @@ int main(int argc, char * argv[]){
 
   // Allocation des variables pour les paramètres du Receveur
   paramsReceveur.idThread = 1; 
-  paramsReceveur.portS  = argv[1];
+  //paramsReceveur.portS  = portProcessus;
   paramsReceveur.idSEM = idSEM; 
   paramsReceveur.idSHM = idSHM; 
   
   // Allocation des variables pour les paramètres de l'Emetteur
   paramsEmetteur.idThread = 2;
-  paramsEmetteur.ip = argv[2];
-  paramsEmetteur.port = argv[3];
+  paramsEmetteur.ip = ipPere;
+  paramsEmetteur.port = portPere;
   paramsEmetteur.idSEM = idSEM; 
   paramsEmetteur.idSHM = idSHM; 
 
