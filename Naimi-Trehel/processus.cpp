@@ -186,16 +186,14 @@ void * fonctionThreadReceveur (void * params){
       // ------------------------------------------------------
       // Réception du message Req (k)(k est le demandeur)
 
-      // si père = nil 
-      //   alors 
+      // si père = "" 
       //   si demande 
       //     alors suivant := k 
       //   sinon 
       //     début jeton-présent := faux; 
       //     envoyer token à k 
-      //   fin 
-      //   finsi 
-      // sinon envoyer req(k) à père 
+      // sinon 
+      //    envoyer req(k) à père 
       // finsi; 
       // père := k 
       std::cout<<"Demande recus !"<<std::endl; 
@@ -222,10 +220,61 @@ void * fonctionThreadReceveur (void * params){
 }
 
 
-void* fonctionThreadEmetteur (void * params){
- struct paramsFonctionEmetteur * args = (struct paramsFonctionEmetteur *) params;
+void sendMessageTo(char* msg, char* ip, char* port){
+  //std::cout<<"ip : "<<ip<<" port : "<<port<<std::endl;
+  // ----------------------- EMETTEUR 
+  int ds = socket(PF_INET, SOCK_STREAM, 0);
 
- char* nom_fichier = strdup(""); 
+  if (ds == -1) {
+    printf("Client : pb creation socket\n");
+    exit(1); 
+  }
+
+  struct sockaddr_in adrServ;
+  adrServ.sin_addr.s_addr = inet_addr(ip);
+  adrServ.sin_family = AF_INET;
+  adrServ.sin_port = htons(atoi(port));
+  socklen_t lgAdr = sizeof(struct sockaddr_in);
+
+  int conn = -1;
+
+  if(conn == -1){
+    conn = connect(ds,(struct sockaddr*) &adrServ, lgAdr);
+    if (conn <0) {
+      perror ("Client: pb au connect :");
+      close (ds); 
+      exit (1); 
+    }
+  }
+
+  unsigned int nbTotOctetsEnvoyes = 0;
+  unsigned int nbAppelSend = 0;
+
+  // Envoie de la taille 
+  int nom_size = strlen(msg) + 1;
+  int snd = sendTCP(ds, (char*)&nom_size, sizeof(nom_size), &nbTotOctetsEnvoyes, &nbAppelSend);
+
+  if (snd == -1) {
+    printf("Client : send n'a pas fonctionné\n");
+  }
+
+
+    // Envoie du mot clé 
+  snd = sendTCP(ds, (char*)msg, nom_size, &nbTotOctetsEnvoyes, &nbAppelSend);
+  if (snd == -1) {
+    printf("Client : send n'a pas fonctionné\n");
+  }
+
+  close (ds);
+  shutdown(ds, SHUT_WR); 
+}
+
+void* fonctionThreadEmetteur (void * params){
+  struct paramsFonctionEmetteur * args = (struct paramsFonctionEmetteur *) params;
+
+  char* msg = strdup(""); 
+
+  //test(std::string(args->ip), std::string(args->port));
 
   // Attachement 
   struct uneChaine * p_att;
@@ -246,53 +295,41 @@ void* fonctionThreadEmetteur (void * params){
   // std::cout<<p_att->portPere<<std::endl; 
 
  while(1){
-  std::cin>>nom_fichier; 
+  // ------------------------------------------------------
+  //                        CALCUL
+  // ------------------------------------------------------
+  //calcul(); 
 
+  // ------------------------------------------------------
+  //          DEMANDE D'ENTRER EN SECTION CRITIQUE
+  // ------------------------------------------------------
+  // demande = true;  
 
-  int ds = socket(PF_INET, SOCK_STREAM, 0);
-  //std::cout<<"ds : "<<ds<<std::endl; 
+  // si pere == "" 
+  //   alors entrée en section critique
+  // sinon 
+  //   début envoyer Req(i) à père;
+  //   père = nil 
 
-  if (ds == -1) {
-    printf("Client : pb creation socket\n");
-    exit(1); 
-  }
+  // ------------------------------------------------------
+  //              ENTRER EN SECTION CRITIQUE
+  // ------------------------------------------------------
+  // Calcule dans la section critique 
+  // calcul(); 
 
-  struct sockaddr_in adrServ;
-  adrServ.sin_addr.s_addr = inet_addr(args->ip);
-  adrServ.sin_family = AF_INET;
-  adrServ.sin_port = htons(atoi(args->port));
-  socklen_t lgAdr = sizeof(struct sockaddr_in);
+  // ------------------------------------------------------
+  //              LIBERATION DE LA RESOURCE
+  // ------------------------------------------------------
+  // demande = false;
 
-  int conn = -1;
+  // si suivant != "" 
+  //   envoyer token à suivant;
+  //   jeton-présent := faux;
+  //   suivant := nil 
 
-  if(conn == -1){
-    conn = connect(ds,(struct sockaddr*) &adrServ, lgAdr);
-    if (conn <0) {
-      perror ("Client: pb au connect :");
-      close (ds); 
-      exit (1); 
-    }
-  }
-
-  unsigned int nbTotOctetsEnvoyes = 0;
-  unsigned int nbAppelSend = 0;
-
-    // Envoie de la taille 
-  int nom_size = strlen(nom_fichier) + 1;
-  int snd = sendTCP(ds, (char*)&nom_size, sizeof(nom_size), &nbTotOctetsEnvoyes, &nbAppelSend);
-  if (snd == -1) {
-    printf("Client : send n'a pas fonctionné\n");
-  }
-
-
-    // Envoie du mot clé 
-  snd = sendTCP(ds, (char*)nom_fichier, nom_size, &nbTotOctetsEnvoyes, &nbAppelSend);
-  if (snd == -1) {
-    printf("Client : send n'a pas fonctionné\n");
-  }
-
-  close (ds);
-  shutdown(ds, SHUT_WR); 
+  // Envoyer un message à ip/port
+  std::cin>>msg; 
+  sendMessageTo(msg, args->ip, args->port); 
   }
 }
 
