@@ -5,6 +5,14 @@
 // ./processus 192.168.1.57 6001 192.168.1.57 6002
 // ./processus 192.168.1.57 6002 192.168.1.57 6001
 
+// Double Run Asus  :
+// ./processus 192.168.1.64 6001 192.168.1.64 6002
+// ./processus 192.168.1.64 6002 192.168.1.64 6001
+
+
+// Ajouter dans le main : srand(time(NULL));
+// calcul(rand()%10+1); 
+
 #include <string.h>
 #include <stdio.h>
 #include <sys/types.h>
@@ -21,6 +29,7 @@
 #include <sys/ipc.h>
 #include <sys/sem.h>
 #include <sys/shm.h>
+#include <vector>
 
 #include "calcul.h"
 
@@ -72,11 +81,11 @@ struct paramsFonctionReceveur {
 
 struct paramsFonctionEmetteur {
   int idThread;
+  // TODO : Enlever ip et port
   char* ip; 
   char* port;
   int idSEM; 
   int idSHM; 
-  
 };
 
 struct uneChaine{ 
@@ -91,6 +100,74 @@ struct uneChaine{
   char* portPere; 
 }SHM;
 
+void sendMessageTo(char* msg, char* ip, char* port){
+  //std::cout<<"ip : "<<ip<<" port : "<<port<<std::endl;
+  // ----------------------- EMETTEUR 
+  int ds = socket(PF_INET, SOCK_STREAM, 0);
+
+  if (ds == -1) {
+    printf("Client : pb creation socket\n");
+    exit(1); 
+  }
+
+  struct sockaddr_in adrServ;
+  adrServ.sin_addr.s_addr = inet_addr(ip);
+  adrServ.sin_family = AF_INET;
+  adrServ.sin_port = htons(atoi(port));
+  socklen_t lgAdr = sizeof(struct sockaddr_in);
+
+  int conn = -1;
+
+  if(conn == -1){
+    conn = connect(ds,(struct sockaddr*) &adrServ, lgAdr);
+    if (conn <0) {
+      perror ("Client: pb au connect :");
+      close (ds); 
+      exit (1); 
+    }
+  }
+
+  unsigned int nbTotOctetsEnvoyes = 0;
+  unsigned int nbAppelSend = 0;
+
+  // Envoie de la taille 
+  int nom_size = strlen(msg) + 1;
+  int snd = sendTCP(ds, (char*)&nom_size, sizeof(nom_size), &nbTotOctetsEnvoyes, &nbAppelSend);
+
+  if (snd == -1) {
+    printf("Client : send n'a pas fonctionné\n");
+  }
+
+
+    // Envoie du mot clé 
+  snd = sendTCP(ds, (char*)msg, nom_size, &nbTotOctetsEnvoyes, &nbAppelSend);
+  if (snd == -1) {
+    printf("Client : send n'a pas fonctionné\n");
+  }
+
+  close (ds);
+  shutdown(ds, SHUT_WR); 
+}
+
+// Envoyer une demande à pere
+void sendDemande(){
+
+}
+
+// Transmettre une demande recus
+void sendDemande(char* ip, char* port){
+
+}
+
+// Envoyer le token au suivant
+void sendToken(){
+  
+}
+
+// Envoyer le token au suivant
+void sendToken(char* ip, char* port){
+  //sendMessageTo()
+}
 
 
 void * fonctionThreadReceveur (void * params){
@@ -159,6 +236,9 @@ void * fonctionThreadReceveur (void * params){
   struct sockaddr_in addrC;
   socklen_t lgCv = sizeof(struct sockaddr_in);
 
+  // Structure pour les opérations sur les SEM
+  struct sembuf opp;
+
   /* boucle de traitement des messages recus */
   while(1){
 
@@ -182,34 +262,92 @@ void * fonctionThreadReceveur (void * params){
 
     std::string msgRCV(messagesRecus); 
 
-    if(msgRCV == DEMANDE_RECUS){
+    // Prendre la verrou
+    opp.sem_num = 0; // Numéro du sémaphore
+    opp.sem_op = -1; // Opération 
+    opp.sem_flg = 0; // ??? 
+    semop(args->idSEM, &opp, 1);
+
+    if(msgRCV.at(0) == DEMANDE_RECUS.at(0)){
       // ------------------------------------------------------
-      // Réception du message Req (k)(k est le demandeur)
+      //        RECEPTION Req(k)(k est le demandeur)
+      // ------------------------------------------------------
+
+
+      // On récupère l'ip et le port de K : 
+      std::vector<std::string> tab(3, ""); 
+      std::string delimiter = "/";
+
+      size_t pos = 0;
+      int i = 0; 
+      std::string token;
+      while ((pos = msgRCV.find(delimiter)) != std::string::npos) {
+        token = msgRCV.substr(0, pos);
+        tab[i] = token;
+        msgRCV.erase(0, pos + delimiter.length());
+        i++; 
+      }
+
+      char *ipK = new char[tab[1].length() + 1];
+      strcpy(ipK, tab[1].c_str());
+
+      char *portK = new char[tab[2].length() + 1];
+      strcpy(portK, tab[2].c_str());
+
+
 
       // si père = "" 
-      //   si demande 
-      //     alors suivant := k 
-      //   sinon 
-      //     début jeton-présent := faux; 
-      //     envoyer token à k 
+      if(std::string(p_att->ipPere) == std::string("") && std::string(p_att->portPere) == std::string("")){
+          // si demande 
+          if(p_att->demande == true){
+            // suivant := k 
+            p_att->ipSuivant = strdup("");    // ip de K
+            p_att->portSuivant = strdup("");  // port de K; 
+          }
+          // sinon
+          else{
+            // jeton-présent := faux; 
+            p_att->token = false; 
+            // envoyer token à k 
+            sendToken(ipK, portK);
+
+          } 
+        
+      }
+      
       // sinon 
       //    envoyer req(k) à père 
       // finsi; 
       // père := k 
       std::cout<<"Demande recus !"<<std::endl; 
     }
-    else if(msgRCV == TOKEN_RECUS){
+    else if(msgRCV.at(0) == TOKEN_RECUS.at(0)){
       // ------------------------------------------------------
-      // Réception du message Token
+      //                    RECEPTION TOKEN
+      // ------------------------------------------------------
+      std::cout<<"Token recus !"<<std::endl; 
 
       // jeton-présent := vrai 
-      std::cout<<"Token recus !"<<std::endl; 
+      p_att->token = true; 
+
+      // Je libère le sémaphore
+      opp.sem_num = 1;
+      opp.sem_op = 1; 
+      opp.sem_flg = 0; 
+      semop(args->idSEM, &opp, 1);
     }
     else{
       //Afficher le message recus :
       //printf("Message recus => '%s'\n", messagesRecus);
       std::cout<<"Message recus => "<<msgRCV<<std::endl;
     }
+
+    // Rend le verou
+    opp.sem_num = 0;
+    opp.sem_op = 1; 
+    opp.sem_flg = 0; 
+    semop(args->idSEM, &opp, 1);
+
   }
 
   close (ds); // atteignable si on sort de la boucle infinie.
@@ -220,61 +358,13 @@ void * fonctionThreadReceveur (void * params){
 }
 
 
-void sendMessageTo(char* msg, char* ip, char* port){
-  //std::cout<<"ip : "<<ip<<" port : "<<port<<std::endl;
-  // ----------------------- EMETTEUR 
-  int ds = socket(PF_INET, SOCK_STREAM, 0);
-
-  if (ds == -1) {
-    printf("Client : pb creation socket\n");
-    exit(1); 
-  }
-
-  struct sockaddr_in adrServ;
-  adrServ.sin_addr.s_addr = inet_addr(ip);
-  adrServ.sin_family = AF_INET;
-  adrServ.sin_port = htons(atoi(port));
-  socklen_t lgAdr = sizeof(struct sockaddr_in);
-
-  int conn = -1;
-
-  if(conn == -1){
-    conn = connect(ds,(struct sockaddr*) &adrServ, lgAdr);
-    if (conn <0) {
-      perror ("Client: pb au connect :");
-      close (ds); 
-      exit (1); 
-    }
-  }
-
-  unsigned int nbTotOctetsEnvoyes = 0;
-  unsigned int nbAppelSend = 0;
-
-  // Envoie de la taille 
-  int nom_size = strlen(msg) + 1;
-  int snd = sendTCP(ds, (char*)&nom_size, sizeof(nom_size), &nbTotOctetsEnvoyes, &nbAppelSend);
-
-  if (snd == -1) {
-    printf("Client : send n'a pas fonctionné\n");
-  }
-
-
-    // Envoie du mot clé 
-  snd = sendTCP(ds, (char*)msg, nom_size, &nbTotOctetsEnvoyes, &nbAppelSend);
-  if (snd == -1) {
-    printf("Client : send n'a pas fonctionné\n");
-  }
-
-  close (ds);
-  shutdown(ds, SHUT_WR); 
-}
-
 void* fonctionThreadEmetteur (void * params){
   struct paramsFonctionEmetteur * args = (struct paramsFonctionEmetteur *) params;
 
-  char* msg = strdup(""); 
+  char* msg = strdup("send"); 
 
   //test(std::string(args->ip), std::string(args->port));
+  srand(time(NULL));
 
   // Attachement 
   struct uneChaine * p_att;
@@ -294,42 +384,94 @@ void* fonctionThreadEmetteur (void * params){
   // std::cout<<p_att->ipPere<<std::endl; 
   // std::cout<<p_att->portPere<<std::endl; 
 
- while(1){
-  // ------------------------------------------------------
-  //                        CALCUL
-  // ------------------------------------------------------
-  //calcul(); 
+  // Structure pour les opérations sur les SEM
+  struct sembuf opp;
 
-  // ------------------------------------------------------
-  //          DEMANDE D'ENTRER EN SECTION CRITIQUE
-  // ------------------------------------------------------
-  // demande = true;  
+  while(1){
+    // ------------------------------------------------------
+    //                        CALCUL
+    // ------------------------------------------------------
+    calcul(rand()%4+1); 
 
-  // si pere == "" 
-  //   alors entrée en section critique
-  // sinon 
-  //   début envoyer Req(i) à père;
-  //   père = nil 
+    // ------------------------------------------------------
+    //          DEMANDE D'ENTRER EN SECTION CRITIQUE
+    // ------------------------------------------------------
 
-  // ------------------------------------------------------
-  //              ENTRER EN SECTION CRITIQUE
-  // ------------------------------------------------------
-  // Calcule dans la section critique 
-  // calcul(); 
+    // Prendre la verrou
+    opp.sem_num = 0; // Numéro du sémaphore
+    opp.sem_op = -1; // Opération 
+    opp.sem_flg = 0; // ??? 
+    semop(args->idSEM, &opp, 1);
 
-  // ------------------------------------------------------
-  //              LIBERATION DE LA RESOURCE
-  // ------------------------------------------------------
-  // demande = false;
+    // demande = true;  
+    p_att->demande = true; 
 
-  // si suivant != "" 
-  //   envoyer token à suivant;
-  //   jeton-présent := faux;
-  //   suivant := nil 
+    // si pere == "" 
+    if(std::string(p_att->ipPere) == std::string("") && std::string(p_att->portPere) == std::string("")){
+      // alors entrée en section critique
+      // ??????
 
-  // Envoyer un message à ip/port
-  std::cin>>msg; 
-  sendMessageTo(msg, args->ip, args->port); 
+    }
+    // sinon 
+    else{
+      //   début envoyer Req(i) à père;
+
+      //   père = "" 
+      p_att->ipPere = strdup(""); 
+      p_att->portPere = strdup("");
+
+    }
+
+    // Rend le verou
+    opp.sem_num = 0;
+    opp.sem_op = 1; 
+    opp.sem_flg = 0; 
+    semop(args->idSEM, &opp, 1);
+
+    // J'attend le token
+    opp.sem_num = 1;
+    opp.sem_op = -1; 
+    opp.sem_flg = 0; 
+    semop(args->idSEM, &opp, 1);
+
+    // ------------------------------------------------------
+    //              ENTRER EN SECTION CRITIQUE
+    // ------------------------------------------------------
+    // Calcule dans la section critique 
+    calcul(rand()%4+1); 
+
+    // ------------------------------------------------------
+    //              LIBERATION DE LA RESOURCE
+    // ------------------------------------------------------
+    // Prendre la verrou
+    opp.sem_num = 0; // Numéro du sémaphore
+    opp.sem_op = -1; // Opération 
+    opp.sem_flg = 0; // ??? 
+    semop(args->idSEM, &opp, 1);
+
+    // demande = false;
+    p_att->demande = false; 
+
+    // si suivant != "" 
+    if(std::string(p_att->ipSuivant) == std::string("") && std::string(p_att->portSuivant) == std::string("")){
+      //   envoyer token à suivant;
+      sendToken(); 
+      //   jeton-présent := faux;
+      p_att->token = false; 
+      //   suivant := nil 
+      p_att->ipSuivant = strdup("");
+      p_att->portSuivant = strdup(""); 
+    }
+
+    // Rend le verou
+    opp.sem_num = 0;
+    opp.sem_op = 1; 
+    opp.sem_flg = 0; 
+    semop(args->idSEM, &opp, 1);
+
+    // Envoyer un message à ip/port
+    //std::cin>>msg;
+    //sendMessageTo(msg, args->ip, args->port); 
   }
 }
 
@@ -377,7 +519,13 @@ int main(int argc, char * argv[]){
 
   // initialisation des sémaphores a la valeur passée en parametre (faire autrement pour des valeurs différentes):
   ushort tabinit[nbSem];
-  for (int i = 0; i < nbSem; i++) tabinit[i] = valeurInit;;
+
+  // TODO : Modifier l'initialisation 
+  for (int i = 0; i < nbSem; i++) 
+    tabinit[i] = valeurInit;
+
+  // tabinit[0] = 1; 
+  // tabinit[1] = (std::string(ipPere) == std::string(ipProcessus) && std::string(portPere) == std::string(portProcessus)) ? 1 : 0;  
  
 
   union semun{
