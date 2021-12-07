@@ -1,31 +1,52 @@
-// Compilation Lucas : 
+// Compilation : 
 // g++ -c processus.cpp && g++ calculCC.o processus.o -o processus -lpthread
 
 // Naimi Asus  :
 // ./processus 1 192.168.1.64 6001 192.168.1.64 6001
 // ./processus 2 192.168.1.64 6002 192.168.1.64 6001
+// ./processus 3 192.168.1.64 6003 192.168.1.64 6001
 
-#include <string.h>
-#include <stdio.h>
-#include <sys/types.h>
-#include <stdlib.h>
-#include <unistd.h>
+#include <vector>
 #include <iostream>
-#include <pthread.h>
+
 #include <string>
 #include <time.h>
-#include <arpa/inet.h>
 #include <netdb.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <pthread.h>
 #include <sys/ipc.h>
 #include <sys/sem.h>
 #include <sys/shm.h>
-#include <vector>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
 
 #include "calcul.h"
 
 #define MAX_BUFFER_SIZE 16000
+
+struct paramsFonctionThread {
+  int idThread;
+  int idSEM; 
+  int idSHM; 
+  
+};
+
+struct commonData{ 
+  bool token;
+  bool demande; 
+
+  char* ip;
+  char* port;
+  char* ipSuivant;
+  char* portSuivant; 
+  char* ipPere;
+  char* portPere; 
+}SHM;
 
 int recvTCP(int socket,  const void * buffer, size_t length,
  unsigned int *nbBytesReceived, unsigned int * nbCallRcv, int bloc) {
@@ -62,35 +83,6 @@ int sendTCP(int socket, const char * buffer, size_t length,
   }
   return 1;
 }
-
-
-struct paramsFonctionReceveur {
-  int idThread;
-  int idSEM; 
-  int idSHM; 
-  
-};
-
-struct paramsFonctionEmetteur {
-  int idThread;
-  // TODO : Enlever ip et port
-  char* ip; 
-  char* port;
-  int idSEM; 
-  int idSHM; 
-};
-
-struct uneChaine{ 
-  bool token;
-  bool demande; 
-
-  char* ip;
-  char* port;
-  char* ipSuivant;
-  char* portSuivant; 
-  char* ipPere;
-  char* portPere; 
-}SHM;
 
 void sendMessageTo(char* msg, char* ip, char* port){
   //std::cout<<"ip : "<<ip<<" port : "<<port<<std::endl;
@@ -141,28 +133,9 @@ void sendMessageTo(char* msg, char* ip, char* port){
   shutdown(ds, SHUT_WR); 
 }
 
-// Envoyer une demande à pere
-void sendDemande(){
-
-}
-
-// Transmettre une demande recus
-void sendDemande(char* ip, char* port){
-
-}
-
-// Envoyer le token au suivant
-void sendToken(){
-}
-
-// Envoyer le token au suivant
-void sendToken(char* ip, char* port){
-  //sendMessageTo()
-}
-
 
 void * fonctionThreadReceveur (void * params){
-  struct paramsFonctionReceveur * args = (struct paramsFonctionReceveur *) params;
+  struct paramsFonctionThread * args = (struct paramsFonctionThread *) params;
 
   int ds = socket(PF_INET, SOCK_STREAM, 0);
 
@@ -172,9 +145,9 @@ void * fonctionThreadReceveur (void * params){
   }
 
   // Attachement 
-  struct uneChaine * p_att;
+  struct commonData * p_att;
 
-  p_att = (uneChaine *)shmat(args->idSHM, NULL, 0); 
+  p_att = (commonData *)shmat(args->idSHM, NULL, 0); 
 
   if((void *)p_att == (void *)-1){
     perror("shmat");
@@ -358,7 +331,7 @@ void * fonctionThreadReceveur (void * params){
 
 
 void* fonctionThreadEmetteur (void * params){
-  struct paramsFonctionEmetteur * args = (struct paramsFonctionEmetteur *) params;
+  struct paramsFonctionThread * args = (struct paramsFonctionThread *) params;
 
   char* msg = strdup("send"); 
 
@@ -366,22 +339,13 @@ void* fonctionThreadEmetteur (void * params){
   srand(time(NULL));
 
   // Attachement 
-  struct uneChaine * p_att;
+  struct commonData * p_att;
 
-  p_att = (uneChaine *)shmat(args->idSHM, NULL, 0); 
+  p_att = (commonData *)shmat(args->idSHM, NULL, 0); 
 
   if((void *)p_att == (void *)-1){
     perror("shmat");
   }
-
-  // std::cout<<p_att->token<<std::endl; 
-  // std::cout<<p_att->demande<<std::endl; 
-  // std::cout<<p_att->ip<<std::endl; 
-  // std::cout<<p_att->port<<std::endl; 
-  // std::cout<<p_att->ipSuivant<<std::endl; 
-  // std::cout<<p_att->portSuivant<<std::endl; 
-  // std::cout<<p_att->ipPere<<std::endl; 
-  // std::cout<<p_att->portPere<<std::endl; 
 
   // Structure pour les opérations sur les SEM
   struct sembuf opp;
@@ -583,9 +547,9 @@ int main(int argc, char * argv[]){
 
   //printf("sem id : %d \n", idSHM);
 
-  struct uneChaine * p_att;
+  struct commonData * p_att;
 
-  p_att = (uneChaine *)shmat(idSHM, NULL, 0); 
+  p_att = (commonData *)shmat(idSHM, NULL, 0); 
 
   if((void *)p_att == (void *)-1){
     perror("shmat");
@@ -628,30 +592,21 @@ int main(int argc, char * argv[]){
   pthread_t threadEmetteur;
 
   // Déclaration des structures pour passer les paramètres aux deux threads
-  struct paramsFonctionReceveur paramsReceveur; 
-  struct paramsFonctionEmetteur paramsEmetteur; 
+  struct paramsFonctionThread params; 
 
   // Allocation des variables pour les paramètres du Receveur
-  paramsReceveur.idThread = 1; 
-  //paramsReceveur.portS  = portProcessus;
-  paramsReceveur.idSEM = idSEM; 
-  paramsReceveur.idSHM = idSHM; 
-  
-  // Allocation des variables pour les paramètres de l'Emetteur
-  paramsEmetteur.idThread = 2;
-  paramsEmetteur.ip = ipPere;
-  paramsEmetteur.port = portPere;
-  paramsEmetteur.idSEM = idSEM; 
-  paramsEmetteur.idSHM = idSHM; 
+  params.idThread = 1; 
+  params.idSEM = idSEM; 
+  params.idSHM = idSHM; 
 
   // Création du thread Receveur 
-  if (pthread_create(&threadReceveur, NULL, fonctionThreadReceveur, &paramsReceveur) != 0){
+  if (pthread_create(&threadReceveur, NULL, fonctionThreadReceveur, &params) != 0){
     perror("erreur creation thread receveur");
     exit(1);
   }
 
   // Création du thread Emetteur
-  if (pthread_create(&threadEmetteur, NULL, fonctionThreadEmetteur, &paramsEmetteur) != 0){
+  if (pthread_create(&threadEmetteur, NULL, fonctionThreadEmetteur, &params) != 0){
     perror("erreur creation thread emetteur");
     exit(1);
   }
