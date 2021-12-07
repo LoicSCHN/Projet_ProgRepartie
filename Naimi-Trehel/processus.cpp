@@ -285,32 +285,40 @@ void * fonctionThreadReceveur (void * params){
       char *portK = new char[tab[2].length() + 1];
       strcpy(portK, tab[2].c_str());
 
-
-
       // si père = "" 
       if(std::string(p_att->ipPere) == std::string("") && std::string(p_att->portPere) == std::string("")){
+          std::cout<<"Demande recus !"<<std::endl; 
           // si demande 
           if(p_att->demande == true){
             // suivant := k 
-            p_att->ipSuivant = strdup("");    // ip de K
-            p_att->portSuivant = strdup("");  // port de K; 
+            p_att->ipSuivant = ipK;//strdup("");    // ip de K
+            p_att->portSuivant = portK; //strdup("");  // port de K; 
           }
           // sinon
           else{
             // jeton-présent := faux; 
             p_att->token = false; 
             // envoyer token à k 
-            sendToken(ipK, portK);
+            char* tok = strdup("T"); 
+            sendMessageTo(tok, ipK, portK);
 
           } 
         
+      }// sinon 
+      else {
+        // envoyer req(k) à père 
+        std::string msgTMP = "D/" + std::string(ipK) + "/" + std::string(portK)+ "/"; 
+
+        char *m = new char[msgTMP.length() + 1];
+        strcpy(m, msgTMP.c_str());
+
+        sendMessageTo(m, p_att->ipPere, p_att->portPere);
+
       }
-      
-      // sinon 
-      //    envoyer req(k) à père 
-      // finsi; 
       // père := k 
-      std::cout<<"Demande recus !"<<std::endl; 
+      p_att->ipPere = ipK; 
+      p_att->portPere = portK; 
+      
     }
     else if(msgRCV.at(0) == TOKEN_RECUS.at(0)){
       // ------------------------------------------------------
@@ -407,6 +415,12 @@ void* fonctionThreadEmetteur (void * params){
     // sinon 
     else{
       //   début envoyer Req(i) à père;
+      std::string msgTMP = "D/" + std::string(p_att->ip) + "/" + std::string(p_att->port)+ "/"; 
+
+      char *m = new char[msgTMP.length() + 1];
+      strcpy(m, msgTMP.c_str());
+
+      sendMessageTo(m, p_att->ipPere, p_att->portPere); 
 
       //   père = "" 
       p_att->ipPere = strdup(""); 
