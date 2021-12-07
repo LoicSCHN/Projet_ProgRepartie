@@ -1,9 +1,17 @@
 // Compilation Lucas : 
-// g++ -c processus.cpp && g++ calculCC.o processus.o -o processus -lpthread
+// g++ -c processusBIS.cpp && g++ calculCC.o processusBIS.o -o processusBIS -lpthread
+
+// Double Run Mac mini  :
+// ./processusBIS 192.168.1.57 6001 192.168.1.57 6002
+// ./processusBIS 192.168.1.57 6002 192.168.1.57 6001
 
 // Naimi Asus  :
-// ./processus 1 192.168.1.64 6001 192.168.1.64 6001
-// ./processus 2 192.168.1.64 6002 192.168.1.64 6001
+// ./processusBIS 192.168.1.64 6001 192.168.1.64 6001
+// ./processusBIS 192.168.1.64 6002 192.168.1.64 6001
+
+
+// Ajouter dans le main : srand(time(NULL));
+// calcul(rand()%10+1); 
 
 #include <string.h>
 #include <stdio.h>
@@ -393,7 +401,7 @@ void* fonctionThreadEmetteur (void * params){
     opp.sem_op = -1; // Opération 
     opp.sem_flg = 0; // ??? 
     semop(args->idSEM, &opp, 1);
-    std::cout<<"Emetteur : Verrou prit pour faire la demande"<<std::endl;
+    std::cout<<"Verrou prit !"<<std::endl;
 
     // demande = true;  
     p_att->demande = true; 
@@ -414,7 +422,6 @@ void* fonctionThreadEmetteur (void * params){
 
     }
 
-    std::cout<<"Emetteur : Demande faite je rend le verrou"<<std::endl;
     // Rend le verou
     opp.sem_num = 0;
     opp.sem_op = 1; 
@@ -425,16 +432,14 @@ void* fonctionThreadEmetteur (void * params){
     opp.sem_num = 1;
     opp.sem_op = -1; 
     opp.sem_flg = 0; 
-    std::cout<<"Emetteur : J'attend le token"<<std::endl;
     semop(args->idSEM, &opp, 1);
-    std::cout<<"Emetteur : J'ai le token ! je rentre en section critique"<<std::endl;
 
     // ------------------------------------------------------
     //              ENTRER EN SECTION CRITIQUE
     // ------------------------------------------------------
     // Calcule dans la section critique 
     calcul(rand()%4+1); 
-    std::cout<<"Emetteur : Section critique fini"<<std::endl;
+
     // ------------------------------------------------------
     //              LIBERATION DE LA RESOURCE
     // ------------------------------------------------------
@@ -443,7 +448,6 @@ void* fonctionThreadEmetteur (void * params){
     opp.sem_op = -1; // Opération 
     opp.sem_flg = 0; // ??? 
     semop(args->idSEM, &opp, 1);
-    std::cout<<"Emetteur : Verrou prit pour faire la liberation"<<std::endl;
 
     // demande = false;
     p_att->demande = false; 
@@ -451,7 +455,6 @@ void* fonctionThreadEmetteur (void * params){
     // si suivant != "" 
     if(std::string(p_att->ipSuivant) != std::string("") && std::string(p_att->portSuivant) != std::string("")){
       //   envoyer token à suivant;
-      std::cout<<"Emetteur : Je passe le jeton au suivant"<<std::endl;
       //sendToken(); 
       char* m = strdup("T"); 
       sendMessageTo(m, p_att->ipSuivant, p_att->portSuivant); 
@@ -467,7 +470,6 @@ void* fonctionThreadEmetteur (void * params){
     opp.sem_op = 1; 
     opp.sem_flg = 0; 
     semop(args->idSEM, &opp, 1);
-    std::cout<<"Emetteur : Liberation faite je rend le verrou"<<std::endl;
 
     // Envoyer un message à ip/port
     //std::cin>>msg;
@@ -480,22 +482,22 @@ void* fonctionThreadEmetteur (void * params){
 int main(int argc, char * argv[]){
 
   // Vérifier les paramètres
-  if (argc < 6){
-    printf("utilisation: %s  id ip port pere_ip pere_port \n", argv[0]);
+  if (argc < 5){
+    printf("utilisation: %s  ip port pere_ip pere_port \n", argv[0]);
     return 1;
   }   
 
-  char * ipProcessus = argv[2]; 
-  char * portProcessus = argv[3]; 
-  char * ipPere = argv[4];
-  char * portPere = argv[5];
+  char * ipProcessus = argv[1]; 
+  char * portProcessus = argv[2]; 
+  char * ipPere = argv[3];
+  char * portPere = argv[4];  
 
 
   // ----------------------- SEMAPHORE
   int nombreDeSem = 2; 
   int valeurInit = 1; 
   char* pourCle = strdup("pourCle.txt"); 
-  int entierPourCle = atoi(argv[1]); 
+  int entierPourCle = 4; //BIS 
   
   int cleSEM = ftok(pourCle, entierPourCle);
 
