@@ -6,6 +6,12 @@
 // ./processus 2 192.168.1.64 6002 192.168.1.64 6001
 // ./processus 3 192.168.1.64 6003 192.168.1.64 6001
 
+// Naimi Asus ROG avec une grosse carte graphique :
+// ./processus 1 172.20.176.117 6001 172.20.176.117 6001
+// ./processus 2 172.20.176.117 6002 172.20.176.117 6001
+// ./processus 3 172.20.176.117 6003 172.20.176.117 6001
+// ./processus 4 172.20.176.117 6004 172.20.176.117 6001
+
 #include <vector>
 #include <iostream>
 
@@ -48,41 +54,6 @@ struct commonData{
   char* portPere; 
 }SHM;
 
-int recvTCP(int socket,  const void * buffer, size_t length,
- unsigned int *nbBytesReceived, unsigned int * nbCallRcv, int bloc) {
-  int rcvTot = 0;
-  int received = 0;
-  while (rcvTot < length) {
-    received = recv(socket, (char*)(buffer)+rcvTot, bloc, 0);
-    if (received <= 0) {
-      return received;
-    }
-    rcvTot += received;
-    (*nbBytesReceived)+= received;
-    (*nbCallRcv)++;
-  }
-  return 1;
-}
-
-int sendTCP(int socket, const char * buffer, size_t length,
- unsigned int *nbBytesSent, unsigned int * nbCallSend) {
-  int sndTot = 0;
-  int sent = 0;
-  int cpt = 0;
-  while (sndTot < length) {
-    sent = send(socket, (buffer)+sndTot, length - sndTot, 0);
-    //std::cout<<"send"<<std::endl;
-    if (sent <= 0) {
-      return sent;
-    }
-    sndTot += sent;
-    cpt++;
-
-    (*nbBytesSent)+=sent;
-    (*nbCallSend)++;
-  }
-  return 1;
-}
 
 void sendMessageTo(char* msg, char* ip, char* port){
   //std::cout<<"ip : "<<ip<<" port : "<<port<<std::endl;
@@ -111,20 +82,18 @@ void sendMessageTo(char* msg, char* ip, char* port){
     }
   }
 
-  unsigned int nbTotOctetsEnvoyes = 0;
-  unsigned int nbAppelSend = 0;
 
   // Envoie de la taille 
   int nom_size = strlen(msg) + 1;
-  int snd = sendTCP(ds, (char*)&nom_size, sizeof(nom_size), &nbTotOctetsEnvoyes, &nbAppelSend);
-
+ 
+  int snd = send(ds, (char*)&nom_size, sizeof(nom_size),0);
   if (snd == -1) {
     printf("Client : send n'a pas fonctionné\n");
   }
 
 
     // Envoie du mot clé 
-  snd = sendTCP(ds, (char*)msg, nom_size, &nbTotOctetsEnvoyes, &nbAppelSend);
+  snd = send(ds, (char*)msg, nom_size, 0);
   if (snd == -1) {
     printf("Client : send n'a pas fonctionné\n");
   }
