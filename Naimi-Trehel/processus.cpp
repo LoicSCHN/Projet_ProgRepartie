@@ -45,7 +45,6 @@ struct paramsFonctionThread {
 struct commonData{ 
   bool token;
   bool demande; 
-
   char* ip;
   char* port;
   char* ipSuivant;
@@ -54,7 +53,9 @@ struct commonData{
   char* portPere; 
 }SHM;
 
-
+// Appel dans les autres fonctions
+// Permet d'envoyer un message à un autre processus
+// avec une socket et un appel avec send
 void sendMessageTo(char* msg, char* ip, char* port){
   //std::cout<<"ip : "<<ip<<" port : "<<port<<std::endl;
   // ----------------------- EMETTEUR 
@@ -102,7 +103,9 @@ void sendMessageTo(char* msg, char* ip, char* port){
   shutdown(ds, SHUT_WR); 
 }
 
-
+// Appel dans le main
+// Création du thread receveur
+// Boucle d'attente de réception du token
 void * fonctionThreadReceveur (void * params){
   struct paramsFonctionThread * args = (struct paramsFonctionThread *) params;
 
@@ -136,7 +139,6 @@ void * fonctionThreadReceveur (void * params){
   struct sockaddr_in server;
   server.sin_family = AF_INET;
   server.sin_addr.s_addr = INADDR_ANY;
-  //server.sin_port = htons(atoi(args->portS));
   server.sin_port = htons(atoi(p_att->port));
 
   if(bind(ds, (struct sockaddr*)&server, sizeof(server)) < 0) {
@@ -195,10 +197,10 @@ void * fonctionThreadReceveur (void * params){
 
     std::string msgRCV(messagesRecus); 
 
-    // Prendre la verrou
+    // Prendre le verrou
     opp.sem_num = 0; // Numéro du sémaphore
     opp.sem_op = -1; // Opération 
-    opp.sem_flg = 0; // ??? 
+    //opp.sem_flg = 0; // ??? 
     semop(args->idSEM, &opp, 1);
 
     if(msgRCV.at(0) == DEMANDE_RECUS.at(0)){
@@ -274,7 +276,7 @@ void * fonctionThreadReceveur (void * params){
       // Je libère le sémaphore
       opp.sem_num = 1;
       opp.sem_op = 1; 
-      opp.sem_flg = 0; 
+      // opp.sem_flg = 0; 
       semop(args->idSEM, &opp, 1);
     }
     else{
@@ -286,7 +288,7 @@ void * fonctionThreadReceveur (void * params){
     // Rend le verou
     opp.sem_num = 0;
     opp.sem_op = 1; 
-    opp.sem_flg = 0; 
+    //opp.sem_flg = 0; 
     semop(args->idSEM, &opp, 1);
 
   }
@@ -298,7 +300,9 @@ void * fonctionThreadReceveur (void * params){
   return 0; 
 }
 
-
+// Appel dans le main
+// Prend le token, rentre en section critique 
+// et passe le token au suivant
 void* fonctionThreadEmetteur (void * params){
   struct paramsFonctionThread * args = (struct paramsFonctionThread *) params;
 
@@ -332,7 +336,7 @@ void* fonctionThreadEmetteur (void * params){
     // Prendre la verrou
     opp.sem_num = 0; // Numéro du sémaphore
     opp.sem_op = -1; // Opération 
-    opp.sem_flg = 0; // ??? 
+    //opp.sem_flg = 0; // ??? 
     semop(args->idSEM, &opp, 1);
     std::cout<<"Emetteur : Verrou prit pour faire la demande"<<std::endl;
 
@@ -365,13 +369,13 @@ void* fonctionThreadEmetteur (void * params){
     // Rend le verou
     opp.sem_num = 0;
     opp.sem_op = 1; 
-    opp.sem_flg = 0; 
+    //opp.sem_flg = 0; 
     semop(args->idSEM, &opp, 1);
 
     // J'attend le token
     opp.sem_num = 1;
     opp.sem_op = -1; 
-    opp.sem_flg = 0; 
+    //opp.sem_flg = 0; 
     std::cout<<"Emetteur : J'attend le token"<<std::endl;
     semop(args->idSEM, &opp, 1);
     std::cout<<"Emetteur : J'ai le token ! je rentre en section critique"<<std::endl;
@@ -388,7 +392,7 @@ void* fonctionThreadEmetteur (void * params){
     // Prendre la verrou
     opp.sem_num = 0; // Numéro du sémaphore
     opp.sem_op = -1; // Opération 
-    opp.sem_flg = 0; // ??? 
+    //opp.sem_flg = 0; // ??? 
     semop(args->idSEM, &opp, 1);
     std::cout<<"Emetteur : Verrou prit pour faire la liberation"<<std::endl;
 
@@ -412,18 +416,14 @@ void* fonctionThreadEmetteur (void * params){
     // Rend le verou
     opp.sem_num = 0;
     opp.sem_op = 1; 
-    opp.sem_flg = 0; 
+    //opp.sem_flg = 0; 
     semop(args->idSEM, &opp, 1);
     std::cout<<"Emetteur : Liberation faite je rend le verrou"<<std::endl;
-
-    // Envoyer un message à ip/port
-    //std::cin>>msg;
-    //sendMessageTo(msg, args->ip, args->port); 
   }
 }
 
 
-
+// Création des sémaphores, initialisation, création des threads
 int main(int argc, char * argv[]){
 
   // Vérifier les paramètres
@@ -438,20 +438,19 @@ int main(int argc, char * argv[]){
   char * portPere = argv[5];
 
 
-  // ----------------------- SEMAPHORE
-  int nombreDeSem = 2; 
+  // ----------------------- SEMAPHORE ----------------
   int valeurInit = 1; 
   char* pourCle = strdup("pourCle.txt"); 
   int entierPourCle = atoi(argv[1]); 
   
   int cleSEM = ftok(pourCle, entierPourCle);
 
-  int nbSem = nombreDeSem;
+  int nbSem = 2;
   
   // On essaie de se connecter au tableau semaphores
   int idSEM = semget(cleSEM, nbSem, IPC_EXCL | 0666);
   
-  // Si il existe pas on le créé
+  // Si il existe pas on le crée
   if(idSEM == -1){
     //Création du tableau de sémaphores
     idSEM = semget(cleSEM, nbSem, IPC_CREAT | IPC_EXCL | 0666);
@@ -462,7 +461,6 @@ int main(int argc, char * argv[]){
     }
   }
 
-  //printf("sem id : %d \n", idSEM);
 
   // initialisation des sémaphores a la valeur passée en parametre (faire autrement pour des valeurs différentes):
   ushort tabinit[nbSem];
@@ -514,8 +512,6 @@ int main(int argc, char * argv[]){
     exit(-1);
   }
 
-  //printf("sem id : %d \n", idSHM);
-
   struct commonData * p_att;
 
   p_att = (commonData *)shmat(idSHM, NULL, 0); 
@@ -556,7 +552,7 @@ int main(int argc, char * argv[]){
   }
 
 
-  // ----------------------- Création des deux threads Emetteur/Receveur
+  // -------------- Création des deux threads Emetteur/Receveur
   pthread_t threadReceveur;
   pthread_t threadEmetteur;
 
@@ -581,7 +577,6 @@ int main(int argc, char * argv[]){
   }
 
   pthread_join(threadReceveur, NULL); 
-  // pthread_join(threadEmetteur, NULL); 
 
   return 0;
 
