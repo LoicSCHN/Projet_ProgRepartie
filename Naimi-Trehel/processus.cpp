@@ -7,9 +7,9 @@
 // ./processus 3 192.168.1.64 6003 192.168.1.64 6001
 
 // Naimi Asus ROG avec une grosse carte graphique :
-// ./processus 1 172.20.176.117 6001 172.20.176.117 6001
-// ./processus 2 172.20.176.117 6002 172.20.176.117 6001
-// ./processus 3 172.20.176.117 6003 172.20.176.117 6001
+// ./processus 1 172.29.179.149 6001 172.29.179.149 6001
+// ./processus 2 172.29.179.149 6002 172.29.179.149 6001
+// ./processus 3 172.29.179.149 6003 172.29.179.149 6001
 // ./processus 4 172.20.176.117 6004 172.20.176.117 6001
 
 #include <vector>
@@ -30,8 +30,9 @@
 #include <sys/types.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
-
+#include <ctime>
 #include "calcul.h"
+#include <chrono>
 
 #define MAX_BUFFER_SIZE 16000
 
@@ -52,6 +53,14 @@ struct commonData{
   char* ipPere;
   char* portPere; 
 }SHM;
+
+std::string getTimeStr(){
+    std::time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    std::string s(30, '\0');
+    std::strftime(&s[0], s.size(), "%Y-%m-%d %H:%M:%S", std::localtime(&now));
+    return s;
+}
+
 
 // Appel dans les autres fonctions
 // Permet d'envoyer un message à un autre processus
@@ -125,16 +134,6 @@ void * fonctionThreadReceveur (void * params){
     perror("shmat");
   }
 
-  // std::cout<<p_att->token<<std::endl; 
-  // std::cout<<p_att->demande<<std::endl; 
-  // std::cout<<p_att->ip<<std::endl; 
-  // std::cout<<p_att->port<<std::endl; 
-  // std::cout<<p_att->ipSuivant<<std::endl; 
-  // std::cout<<p_att->portSuivant<<std::endl; 
-  // std::cout<<p_att->ipPere<<std::endl; 
-  // std::cout<<p_att->portPere<<std::endl; 
-
-  //printf("Serveur : creation de la socket : ok\n");
 
   struct sockaddr_in server;
   server.sin_family = AF_INET;
@@ -235,8 +234,8 @@ void * fonctionThreadReceveur (void * params){
           // si demande 
           if(p_att->demande == true){
             // suivant := k 
-            p_att->ipSuivant = ipK;//strdup("");    // ip de K
-            p_att->portSuivant = portK; //strdup("");  // port de K; 
+            p_att->ipSuivant = ipK;    // ip de K
+            p_att->portSuivant = portK;   // port de K; 
           }
           // sinon
           else{
@@ -281,7 +280,6 @@ void * fonctionThreadReceveur (void * params){
     }
     else{
       //Afficher le message recus :
-      //printf("Message recus => '%s'\n", messagesRecus);
       std::cout<<"Message recus => "<<msgRCV<<std::endl;
     }
 
@@ -308,7 +306,6 @@ void* fonctionThreadEmetteur (void * params){
 
   char* msg = strdup("send"); 
 
-  //test(std::string(args->ip), std::string(args->port));
   srand(time(NULL));
 
   // Attachement 
@@ -346,7 +343,6 @@ void* fonctionThreadEmetteur (void * params){
     // si pere == "" 
     if(std::string(p_att->ipPere) == std::string("") && std::string(p_att->portPere) == std::string("")){
       // alors entrée en section critique
-      // ??????
 
     }
     // sinon 
@@ -378,8 +374,9 @@ void* fonctionThreadEmetteur (void * params){
      
     std::cout<<"Emetteur : J'attend le token"<<std::endl;
     semop(args->idSEM, &opp, 1);
-    std::cout<<"Emetteur : J'ai le token ! je rentre en section critique"<<std::endl;
-
+    std::cout<<"Emetteur : J'ai le token ! je rentre en section critique. ";
+    std::cout<<"Il est : ";
+    std::cout<<getTimeStr()<<std::endl;
     // ------------------------------------------------------
     //              ENTRER EN SECTION CRITIQUE
     // ------------------------------------------------------
@@ -464,10 +461,6 @@ int main(int argc, char * argv[]){
 
   // initialisation des sémaphores a la valeur passée en parametre (faire autrement pour des valeurs différentes):
   ushort tabinit[nbSem];
-
-  // TODO : Modifier l'initialisation 
-  //for (int i = 0; i < nbSem; i++) 
-  // tabinit[i] = valeurInit;
 
   tabinit[0] = 1; 
   tabinit[1] = (std::string(ipPere) == std::string(ipProcessus) && std::string(portPere) == std::string(portProcessus)) ? 1 : 0;  
