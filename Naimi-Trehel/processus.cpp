@@ -200,7 +200,7 @@ void * fonctionThreadReceveur (void * params){
     // Prendre le verrou
     opp.sem_num = 0; // Numéro du sémaphore
     opp.sem_op = -1; // Opération 
-    //opp.sem_flg = 0; // ??? 
+    
     semop(args->idSEM, &opp, 1);
 
     if(msgRCV.at(0) == DEMANDE_RECUS.at(0)){
@@ -276,7 +276,7 @@ void * fonctionThreadReceveur (void * params){
       // Je libère le sémaphore
       opp.sem_num = 1;
       opp.sem_op = 1; 
-      // opp.sem_flg = 0; 
+      
       semop(args->idSEM, &opp, 1);
     }
     else{
@@ -336,7 +336,7 @@ void* fonctionThreadEmetteur (void * params){
     // Prendre la verrou
     opp.sem_num = 0; // Numéro du sémaphore
     opp.sem_op = -1; // Opération 
-    //opp.sem_flg = 0; // ??? 
+    
     semop(args->idSEM, &opp, 1);
     std::cout<<"Emetteur : Verrou prit pour faire la demande"<<std::endl;
 
@@ -375,7 +375,7 @@ void* fonctionThreadEmetteur (void * params){
     // J'attend le token
     opp.sem_num = 1;
     opp.sem_op = -1; 
-    //opp.sem_flg = 0; 
+     
     std::cout<<"Emetteur : J'attend le token"<<std::endl;
     semop(args->idSEM, &opp, 1);
     std::cout<<"Emetteur : J'ai le token ! je rentre en section critique"<<std::endl;
@@ -416,7 +416,7 @@ void* fonctionThreadEmetteur (void * params){
     // Rend le verou
     opp.sem_num = 0;
     opp.sem_op = 1; 
-    //opp.sem_flg = 0; 
+     
     semop(args->idSEM, &opp, 1);
     std::cout<<"Emetteur : Liberation faite je rend le verrou"<<std::endl;
   }
