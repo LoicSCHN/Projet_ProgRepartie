@@ -12,9 +12,15 @@
 // ./processus 3 172.29.179.149 6003 172.29.179.149 6001
 // ./processus 4 172.20.176.117 6004 172.20.176.117 6001
 
+
+// TODO
+// Envoyer un int pour le port
+// Enoyer des sockadress à la place des char*
+// Variables conditionnelles à la place des sémaphores
+// Gestion des erreurs
+
 #include <vector>
 #include <iostream>
-
 #include <string>
 #include <time.h>
 #include <netdb.h>
@@ -57,7 +63,7 @@ struct commonData{
 std::string getTimeStr(){
     std::time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     std::string s(30, '\0');
-    std::strftime(&s[0], s.size(), "%Y-%m-%d %H:%M:%S", std::localtime(&now));
+    std::strftime(&s[0], s.size(), "%H:%M:%S", std::localtime(&now));
     return s;
 }
 
@@ -182,7 +188,7 @@ void * fonctionThreadReceveur (void * params){
     // Accepter les message recus : 
     dsCv = accept(ds, (struct sockaddr *)&addrC, &lgCv);
 
-    // ??
+    // ??  
     FD_SET(dsCv, &set);
     if( max < dsCv) {
       max = dsCv;
@@ -267,7 +273,8 @@ void * fonctionThreadReceveur (void * params){
       // ------------------------------------------------------
       //                    RECEPTION TOKEN
       // ------------------------------------------------------
-      std::cout<<"Token recus !"<<std::endl; 
+      std::cout<<"Token recus : "<<getTimeStr()<<std::endl;
+      
 
       // jeton-présent := vrai 
       p_att->token = true; 
