@@ -1,10 +1,15 @@
 // Compilation : 
 // g++ -c processus.cpp && g++ calculCC.o processus.o -o processus -lpthread
 
+// TODO : - Utiliser uniquement des sockaddr_in
+//        - Enlever le plus de paramètres possible pour l'execution
+//        - Simplifier le code
+//        - Variables conditionnelles à la place des SEM
+
 // Naimi Asus  :
-// ./processus 1 192.168.1.64 6001 192.168.1.64 6001
-// ./processus 2 192.168.1.64 6002 192.168.1.64 6001
-// ./processus 3 192.168.1.64 6003 192.168.1.64 6001
+// ./processus 1 192.168.1.65 6001 192.168.1.65 6001
+// ./processus 2 192.168.1.65 6002 192.168.1.65 6001
+// ./processus 3 192.168.1.65 6003 192.168.1.65 6001
 
 // Naimi Asus ROG avec une grosse carte graphique :
 // ./processus 1 172.29.179.149 6001 172.29.179.149 6001
@@ -44,20 +49,28 @@
 
 struct paramsFonctionThread {
   int idThread;
-  int idSEM; 
+  int idSEM; // A enlever 
   int idSHM; 
   
 };
 
 struct commonData{ 
-  bool token;
+  bool token; // Voir si c'est utile ? 
   bool demande; 
+  
+  /*SUPP*/
   char* ip;
   char* port;
   char* ipSuivant;
   char* portSuivant; 
   char* ipPere;
   char* portPere; 
+  /*SUPP*/
+
+  //sockaddr_in pere; 
+  //sockaddr_in suivant; 
+
+
 }SHM;
 
 std::string getTimeStr(){
@@ -67,6 +80,52 @@ std::string getTimeStr(){
     return s;
 }
 
+void sendMessageTo(char* msg, sockaddr_in& adrServ){
+  //std::cout<<"ip : "<<ip<<" port : "<<port<<std::endl;
+  // ----------------------- EMETTEUR 
+  int ds = socket(PF_INET, SOCK_STREAM, 0);
+
+  if (ds == -1) {
+    printf("Client : pb creation socket\n");
+    exit(1); 
+  }
+
+  // struct sockaddr_in adrServ;
+  // adrServ.sin_addr.s_addr = inet_addr(ip);
+  // adrServ.sin_family = AF_INET;
+  // adrServ.sin_port = htons(atoi(port));
+  socklen_t lgAdr = sizeof(struct sockaddr_in);
+
+  int conn = -1;
+
+  if(conn == -1){
+    conn = connect(ds,(struct sockaddr*) &adrServ, lgAdr);
+    if (conn <0) {
+      perror ("Client: pb au connect :");
+      close (ds); 
+      exit (1); 
+    }
+  }
+
+
+  // Envoie de la taille 
+  int nom_size = strlen(msg) + 1;
+ 
+  int snd = send(ds, (char*)&nom_size, sizeof(nom_size),0);
+  if (snd == -1) {
+    printf("Client : send n'a pas fonctionné\n");
+  }
+
+
+    // Envoie du mot clé 
+  snd = send(ds, (char*)msg, nom_size, 0);
+  if (snd == -1) {
+    printf("Client : send n'a pas fonctionné\n");
+  }
+
+  close (ds);
+  shutdown(ds, SHUT_WR); 
+}
 
 // Appel dans les autres fonctions
 // Permet d'envoyer un message à un autre processus
@@ -187,6 +246,9 @@ void * fonctionThreadReceveur (void * params){
 
     // Accepter les message recus : 
     dsCv = accept(ds, (struct sockaddr *)&addrC, &lgCv);
+
+    // addrC : Contient les infos sur le client
+    // On peut connaitre l'adresse ip et la prot du client
 
     // ??  
     FD_SET(dsCv, &set);
@@ -342,7 +404,7 @@ void* fonctionThreadEmetteur (void * params){
     opp.sem_op = -1; // Opération 
     
     semop(args->idSEM, &opp, 1);
-    std::cout<<"Emetteur : Verrou prit pour faire la demande"<<std::endl;
+    //std::cout<<"Emetteur : Verrou prit pour faire la demande"<<std::endl;
 
     // demande = true;  
     p_att->demande = true; 
@@ -368,7 +430,7 @@ void* fonctionThreadEmetteur (void * params){
 
     }
 
-    std::cout<<"Emetteur : Demande faite je rend le verrou"<<std::endl;
+    //std::cout<<"Emetteur : Demande faite je rend le verrou"<<std::endl;
     // Rend le verou
     opp.sem_num = 0;
     opp.sem_op = 1; 
@@ -380,10 +442,10 @@ void* fonctionThreadEmetteur (void * params){
     opp.sem_op = -1; 
      
     std::cout<<"Emetteur : J'attend le token"<<std::endl;
-    semop(args->idSEM, &opp, 1);
-    std::cout<<"Emetteur : J'ai le token ! je rentre en section critique. ";
-    std::cout<<"Il est : ";
-    std::cout<<getTimeStr()<<std::endl;
+
+    semop(args->idSEM, &opp, 1); // A Remplacer par des variables conditionnelles
+    std::cout<<"Emetteur : J'ai le token ! je rentre en section critique. "<<getTimeStr()<<std::endl;
+
     // ------------------------------------------------------
     //              ENTRER EN SECTION CRITIQUE
     // ------------------------------------------------------
