@@ -42,10 +42,18 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <ctime>
+
+#include <mutex>
+#include <condition_variable> // std::condition_variable
+
 #include "calcul.h"
 #include <chrono>
 
 #define MAX_BUFFER_SIZE 16000
+
+std::mutex mutexOnSHM; 
+std::mutex mtx;
+std::condition_variable cv;
 
 struct paramsFonctionThread {
   int idThread;
@@ -66,11 +74,6 @@ struct commonData{
   char* ipPere;
   char* portPere; 
   /*SUPP*/
-
-  //sockaddr_in pere; 
-  //sockaddr_in suivant; 
-
-
 }SHM;
 
 std::string getTimeStr(){
@@ -238,6 +241,9 @@ void * fonctionThreadReceveur (void * params){
   // Structure pour les opérations sur les SEM
   struct sembuf opp;
 
+  std::unique_lock<std::mutex> lck(mtx);
+
+
   /* boucle de traitement des messages recus */
   while(1){
 
@@ -265,10 +271,7 @@ void * fonctionThreadReceveur (void * params){
     std::string msgRCV(messagesRecus); 
 
     // Prendre le verrou
-    opp.sem_num = 0; // Numéro du sémaphore
-    opp.sem_op = -1; // Opération 
-    
-    semop(args->idSEM, &opp, 1);
+    mutexOnSHM.lock(); 
 
     if(msgRCV.at(0) == DEMANDE_RECUS.at(0)){
       // ------------------------------------------------------
@@ -298,7 +301,7 @@ void * fonctionThreadReceveur (void * params){
 
       // si père = "" 
       if(std::string(p_att->ipPere) == std::string("") && std::string(p_att->portPere) == std::string("")){
-          std::cout<<"Demande recus !"<<std::endl; 
+          //std::cout<<"Demande recus !"<<std::endl; 
           // si demande 
           if(p_att->demande == true){
             // suivant := k 
@@ -335,7 +338,7 @@ void * fonctionThreadReceveur (void * params){
       // ------------------------------------------------------
       //                    RECEPTION TOKEN
       // ------------------------------------------------------
-      std::cout<<"Token recus : "<<getTimeStr()<<std::endl;
+      //std::cout<<"Token recus : "<<getTimeStr()<<std::endl;
       
 
       // jeton-présent := vrai 
@@ -344,7 +347,6 @@ void * fonctionThreadReceveur (void * params){
       // Je libère le sémaphore
       opp.sem_num = 1;
       opp.sem_op = 1; 
-      
       semop(args->idSEM, &opp, 1);
     }
     else{
@@ -353,10 +355,7 @@ void * fonctionThreadReceveur (void * params){
     }
 
     // Rend le verou
-    opp.sem_num = 0;
-    opp.sem_op = 1; 
-    //opp.sem_flg = 0; 
-    semop(args->idSEM, &opp, 1);
+    mutexOnSHM.unlock(); 
 
   }
 
@@ -393,18 +392,18 @@ void* fonctionThreadEmetteur (void * params){
     // ------------------------------------------------------
     //                        CALCUL
     // ------------------------------------------------------
-    calcul(rand()%4+1); 
+    //calcul(rand()%4+1); 
 
     // ------------------------------------------------------
     //          DEMANDE D'ENTRER EN SECTION CRITIQUE
     // ------------------------------------------------------
 
     // Prendre la verrou
-    opp.sem_num = 0; // Numéro du sémaphore
-    opp.sem_op = -1; // Opération 
-    
-    semop(args->idSEM, &opp, 1);
+    // opp.sem_num = 0; // Numéro du sémaphore
+    // opp.sem_op = -1; // Opération 
+    // semop(args->idSEM, &opp, 1);
     //std::cout<<"Emetteur : Verrou prit pour faire la demande"<<std::endl;
+    mutexOnSHM.lock(); 
 
     // demande = true;  
     p_att->demande = true; 
@@ -432,35 +431,36 @@ void* fonctionThreadEmetteur (void * params){
 
     //std::cout<<"Emetteur : Demande faite je rend le verrou"<<std::endl;
     // Rend le verou
-    opp.sem_num = 0;
-    opp.sem_op = 1; 
-    //opp.sem_flg = 0; 
-    semop(args->idSEM, &opp, 1);
+    // opp.sem_num = 0;
+    // opp.sem_op = 1; 
+    // opp.sem_flg = 0; 
+    // semop(args->idSEM, &opp, 1);
+
+    mutexOnSHM.unlock();
 
     // J'attend le token
     opp.sem_num = 1;
     opp.sem_op = -1; 
-     
-    std::cout<<"Emetteur : J'attend le token"<<std::endl;
-
     semop(args->idSEM, &opp, 1); // A Remplacer par des variables conditionnelles
-    std::cout<<"Emetteur : J'ai le token ! je rentre en section critique. "<<getTimeStr()<<std::endl;
+
+    std::cout<<"Section critique. "<<getTimeStr()<<std::endl;
 
     // ------------------------------------------------------
     //              ENTRER EN SECTION CRITIQUE
     // ------------------------------------------------------
     // Calcule dans la section critique 
     calcul(rand()%4+1); 
-    std::cout<<"Emetteur : Section critique fini"<<std::endl;
+    std::cout<<"Fin section critique. "<<getTimeStr()<<std::endl;
+    //mutexTOKKEN.unlock();
     // ------------------------------------------------------
     //              LIBERATION DE LA RESOURCE
     // ------------------------------------------------------
     // Prendre la verrou
-    opp.sem_num = 0; // Numéro du sémaphore
-    opp.sem_op = -1; // Opération 
-    //opp.sem_flg = 0; // ??? 
-    semop(args->idSEM, &opp, 1);
-    std::cout<<"Emetteur : Verrou prit pour faire la liberation"<<std::endl;
+    // opp.sem_num = 0; // Numéro du sémaphore
+    // opp.sem_op = -1; // Opération 
+    // semop(args->idSEM, &opp, 1);
+    mutexOnSHM.lock(); 
+    //std::cout<<"Emetteur : Verrou prit pour faire la liberation"<<std::endl;
 
     // demande = false;
     p_att->demande = false; 
@@ -468,9 +468,10 @@ void* fonctionThreadEmetteur (void * params){
     // si suivant != "" 
     if(std::string(p_att->ipSuivant) != std::string("") && std::string(p_att->portSuivant) != std::string("")){
       //   envoyer token à suivant;
-      std::cout<<"Emetteur : Je passe le jeton au suivant"<<std::endl;
+      //std::cout<<"Emetteur : Je passe le jeton au suivant"<<std::endl;
       //sendToken(); 
       char* m = strdup("T"); 
+      //mutexTOKKEN.unlock(); 
       sendMessageTo(m, p_att->ipSuivant, p_att->portSuivant); 
       //   jeton-présent := faux;
       p_att->token = false; 
@@ -480,11 +481,11 @@ void* fonctionThreadEmetteur (void * params){
     }
 
     // Rend le verou
-    opp.sem_num = 0;
-    opp.sem_op = 1; 
-     
-    semop(args->idSEM, &opp, 1);
-    std::cout<<"Emetteur : Liberation faite je rend le verrou"<<std::endl;
+    // opp.sem_num = 0;
+    // opp.sem_op = 1; 
+    // semop(args->idSEM, &opp, 1);
+    mutexOnSHM.unlock(); 
+    //std::cout<<"Emetteur : Liberation faite je rend le verrou"<<std::endl;
   }
 }
 
@@ -532,8 +533,7 @@ int main(int argc, char * argv[]){
   ushort tabinit[nbSem];
 
   tabinit[0] = 1; 
-  tabinit[1] = (std::string(ipPere) == std::string(ipProcessus) && std::string(portPere) == std::string(portProcessus)) ? 1 : 0;  
- 
+  tabinit[1] = (std::string(ipPere) == std::string(ipProcessus) && std::string(portPere) == std::string(portProcessus)) ? 1 : 0;
 
   union semun{
     int val;
