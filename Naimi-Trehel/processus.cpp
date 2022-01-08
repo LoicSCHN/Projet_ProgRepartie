@@ -11,6 +11,11 @@
 // ./processus 2 192.168.1.65 6002 192.168.1.65 6001
 // ./processus 3 192.168.1.65 6003 192.168.1.65 6001
 
+// Naimi Asus  :
+// ./processus 1 192.168.1.64 6001 192.168.1.64 6001
+// ./processus 2 192.168.1.64 6002 192.168.1.64 6001
+// ./processus 3 192.168.1.64 6005 192.168.1.64 6001
+
 // Naimi Asus ROG avec une grosse carte graphique :
 // ./processus 1 172.29.179.149 6001 172.29.179.149 6001
 // ./processus 2 172.29.179.149 6002 172.29.179.149 6001
@@ -51,9 +56,67 @@
 
 #define MAX_BUFFER_SIZE 16000
 
-std::mutex mutexOnSHM; 
-std::mutex mtx;
-std::condition_variable cv;
+
+
+std::mutex mutexOnSHM;
+
+
+std::string getTimeStr(){
+    std::time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    std::string s(30, '\0');
+    std::strftime(&s[0], s.size(), "%H:%M:%S", std::localtime(&now));
+    return s;
+}
+
+/*********************** TEST CV ***********************/
+#define BUFFER_SIZE 2
+#define OVER (-1)
+
+struct prodcons {
+  bool token; 
+  pthread_mutex_t lock; 
+  pthread_cond_t tokenSignal;
+
+} buffer;
+
+/* Initialize a buffer */
+void init(struct prodcons * b, const bool & start){
+  pthread_mutex_init(&(b->lock), NULL);
+  pthread_cond_init(&(b->tokenSignal), NULL);
+  b->token = start; 
+}
+
+void getTOKEN(struct prodcons *b){
+  pthread_mutex_lock(&b->lock);
+  std::cout<<"Signal"<<std::endl;
+  //b->token == true;
+  pthread_cond_signal(&b->tokenSignal);
+  pthread_mutex_unlock(&b->lock);
+}
+
+void waitTOKEN(struct prodcons *b){
+  //pthread_mutex_lock(&b->lock);
+
+  //std::cout<<b->token<<std::endl; 
+  if(b->token == false) {
+    pthread_mutex_lock(&b->lock);
+    pthread_cond_wait(&b->tokenSignal, &b->lock);
+    pthread_mutex_unlock(&b->lock);
+  }
+  
+  std::cout<<"Entrer : "<<getTimeStr()<<std::endl;
+  calcul(rand()%4+1); 
+  std::cout<<"Sortie : "<<getTimeStr()<<std::endl;
+
+  //pthread_mutex_unlock(&b->lock);
+
+  b->token = false; 
+  calcul(2); 
+
+}
+
+
+/*******************************************************/
 
 struct paramsFonctionThread {
   int idThread;
@@ -75,13 +138,6 @@ struct commonData{
   char* portPere; 
   /*SUPP*/
 }SHM;
-
-std::string getTimeStr(){
-    std::time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-    std::string s(30, '\0');
-    std::strftime(&s[0], s.size(), "%H:%M:%S", std::localtime(&now));
-    return s;
-}
 
 void sendMessageTo(char* msg, sockaddr_in& adrServ){
   //std::cout<<"ip : "<<ip<<" port : "<<port<<std::endl;
@@ -241,7 +297,7 @@ void * fonctionThreadReceveur (void * params){
   // Structure pour les opérations sur les SEM
   struct sembuf opp;
 
-  std::unique_lock<std::mutex> lck(mtx);
+  //std::unique_lock<std::mutex> lck(mtx);
 
 
   /* boucle de traitement des messages recus */
@@ -338,16 +394,18 @@ void * fonctionThreadReceveur (void * params){
       // ------------------------------------------------------
       //                    RECEPTION TOKEN
       // ------------------------------------------------------
-      //std::cout<<"Token recus : "<<getTimeStr()<<std::endl;
+      std::cout<<"Token recus : "<<getTimeStr()<<std::endl;
       
 
       // jeton-présent := vrai 
       p_att->token = true; 
 
-      // Je libère le sémaphore
-      opp.sem_num = 1;
-      opp.sem_op = 1; 
-      semop(args->idSEM, &opp, 1);
+      // GET TOKEN
+      // opp.sem_num = 1;
+      // opp.sem_op = 1; 
+      // semop(args->idSEM, &opp, 1);
+
+      getTOKEN(&buffer); 
     }
     else{
       //Afficher le message recus :
@@ -438,19 +496,24 @@ void* fonctionThreadEmetteur (void * params){
 
     mutexOnSHM.unlock();
 
-    // J'attend le token
-    opp.sem_num = 1;
-    opp.sem_op = -1; 
-    semop(args->idSEM, &opp, 1); // A Remplacer par des variables conditionnelles
+    // WAIT TOKEN
+    // opp.sem_num = 1;
+    // opp.sem_op = -1; 
+    // semop(args->idSEM, &opp, 1); // A Remplacer par des variables conditionnelles
 
-    std::cout<<"Section critique. "<<getTimeStr()<<std::endl;
+    waitTOKEN(&buffer);
+    // std::cout<<"Section critique. "<<getTimeStr()<<std::endl;
 
     // ------------------------------------------------------
     //              ENTRER EN SECTION CRITIQUE
     // ------------------------------------------------------
     // Calcule dans la section critique 
-    calcul(rand()%4+1); 
-    std::cout<<"Fin section critique. "<<getTimeStr()<<std::endl;
+    // calcul(rand()%4+1); 
+    // std::cout<<"Fin section critique. "<<getTimeStr()<<std::endl;
+
+    //freeTOKEN(&buffer);
+    //pthread_mutex_unlock(&buffer.lock);
+
     //mutexTOKKEN.unlock();
     // ------------------------------------------------------
     //              LIBERATION DE LA RESOURCE
@@ -468,7 +531,7 @@ void* fonctionThreadEmetteur (void * params){
     // si suivant != "" 
     if(std::string(p_att->ipSuivant) != std::string("") && std::string(p_att->portSuivant) != std::string("")){
       //   envoyer token à suivant;
-      //std::cout<<"Emetteur : Je passe le jeton au suivant"<<std::endl;
+      std::cout<<"Emetteur : Je passe le jeton au suivant"<<std::endl;
       //sendToken(); 
       char* m = strdup("T"); 
       //mutexTOKKEN.unlock(); 
@@ -492,7 +555,6 @@ void* fonctionThreadEmetteur (void * params){
 
 // Création des sémaphores, initialisation, création des threads
 int main(int argc, char * argv[]){
-
   // Vérifier les paramètres
   if (argc < 6){
     printf("utilisation: %s  id ip port pere_ip pere_port \n", argv[0]);
@@ -528,12 +590,16 @@ int main(int argc, char * argv[]){
     }
   }
 
+  bool start = (std::string(ipPere) == std::string(ipProcessus) && std::string(portPere) == std::string(portProcessus)); 
+
 
   // initialisation des sémaphores a la valeur passée en parametre (faire autrement pour des valeurs différentes):
   ushort tabinit[nbSem];
 
   tabinit[0] = 1; 
-  tabinit[1] = (std::string(ipPere) == std::string(ipProcessus) && std::string(portPere) == std::string(portProcessus)) ? 1 : 0;
+  tabinit[1] = start ? 1 : 0;
+
+
 
   union semun{
     int val;
@@ -626,6 +692,11 @@ int main(int argc, char * argv[]){
   params.idSEM = idSEM; 
   params.idSHM = idSHM; 
 
+  /********************** TEST CV ***********************/
+  void * retval;
+  init(&buffer, start);
+  /********************** TEST CV ***********************/
+
   // Création du thread Receveur 
   if (pthread_create(&threadReceveur, NULL, fonctionThreadReceveur, &params) != 0){
     perror("erreur creation thread receveur");
@@ -638,7 +709,9 @@ int main(int argc, char * argv[]){
     exit(1);
   }
 
-  pthread_join(threadReceveur, NULL); 
+  pthread_join(threadReceveur, &retval); 
+  pthread_join(threadEmetteur, &retval);
+
 
   return 0;
 
