@@ -24,22 +24,11 @@
 #include <chrono>
 
 #define MAX_BUFFER_SIZE 16000
-
+#define BUFFER_SIZE 2
+#define OVER (-1)
 
 
 std::mutex mutexOnSHM;
-
-
-std::string getTimeStr(){
-    std::time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-    std::string s(30, '\0');
-    std::strftime(&s[0], s.size(), "%H:%M:%S", std::localtime(&now));
-    return s;
-}
-
-/*********************** TEST CV ***********************/
-#define BUFFER_SIZE 2
-#define OVER (-1)
 
 struct prodcons {
   bool token; 
@@ -48,6 +37,25 @@ struct prodcons {
 
 } buffer;
 
+struct commonData{ 
+  bool token; 
+  bool demande; 
+  char* ip;
+  char* port;
+  char* ipSuivant;
+  char* portSuivant; 
+  char* ipPere;
+  char* portPere; 
+  
+}SHM;
+
+
+std::string getTimeStr(){
+    std::time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    std::string s(30, '\0');
+    std::strftime(&s[0], s.size(), "%H:%M:%S", std::localtime(&now));
+    return s;
+}
 /* Initialize a buffer */
 void init(struct prodcons * b, const bool & start){
   pthread_mutex_init(&(b->lock), NULL);
@@ -81,24 +89,6 @@ void waitTOKEN(struct prodcons *b){
   calcul(2); 
 
 }
-
-
-/*******************************************************/
-
-
-struct commonData{ 
-  bool token; 
-  bool demande; 
-  char* ip;
-  char* port;
-  char* ipSuivant;
-  char* portSuivant; 
-  char* ipPere;
-  char* portPere; 
-  
-}SHM;
-
-
 
 // Appel dans les autres fonctions
 // Permet d'envoyer un message à un autre processus
