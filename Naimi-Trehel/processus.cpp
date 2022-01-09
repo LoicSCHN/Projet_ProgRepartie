@@ -1,8 +1,15 @@
 // Compilation : 
 // g++ -c processus.cpp && g++ calculCC.o processus.o -o processus -lpthread
-// ./processus 1 172.17.0.143 6001 172.17.0.143 6001
-// ./processus 2 172.17.0.143 6002 172.17.0.143 6001
-// ./processus 3 172.17.0.143 6003 172.17.0.143 6001
+
+// -------------------- LOIC ---------------------
+// ./processus 172.17.0.143 6001 172.17.0.143 6001
+// ./processus 172.17.0.143 6002 172.17.0.143 6001
+// ./processus 172.17.0.143 6003 172.17.0.143 6001
+
+// -------------------- LUCAS --------------------
+// ./processus 192.168.1.64 6001 192.168.1.64 6001
+// ./processus 192.168.1.64 6002 192.168.1.64 6001
+// ./processus 192.168.1.64 6003 192.168.1.64 6001
 
 #include <vector>
 #include <iostream>
@@ -13,86 +20,73 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <sys/shm.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
-#include <ctime>
 #include <mutex>
 #include "calcul.h"
-#include <chrono>
 
 #define MAX_BUFFER_SIZE 16000
-#define BUFFER_SIZE 2
-#define OVER (-1)
-
 
 std::mutex mutexOnSHM;
 
-struct prodcons {
-  bool token; 
-  pthread_mutex_t lock; 
-  pthread_cond_t tokenSignal;
-
-} buffer;
-
-struct commonData{ 
+struct threadData {
   bool token; 
   bool demande; 
+
   char* ip;
   char* port;
   char* ipSuivant;
   char* portSuivant; 
   char* ipPere;
-  char* portPere; 
-  
-}SHM;
+  char* portPere;
 
+  pthread_mutex_t lock; 
+  pthread_cond_t tokenSignal;
 
-std::string getTimeStr(){
+} data;
+
+std::string getTIME(){
     std::time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     std::string s(30, '\0');
     std::strftime(&s[0], s.size(), "%H:%M:%S", std::localtime(&now));
     return s;
 }
-/* Initialize a buffer */
-void init(struct prodcons * b, const bool & start){
+
+// Initialisation des locks
+void init(struct threadData * b, const bool & start){
   pthread_mutex_init(&(b->lock), NULL);
   pthread_cond_init(&(b->tokenSignal), NULL);
   b->token = start; 
 }
 
-void getTOKEN(struct prodcons *b){
+// Méthode pour débloquer l'entrer en section critique 
+// lors de la reception du token
+void getTOKEN(struct threadData *b){
   pthread_mutex_lock(&b->lock);
   std::cout<<"Signal"<<std::endl;
   pthread_cond_signal(&b->tokenSignal);
   pthread_mutex_unlock(&b->lock);
 }
 
-void waitTOKEN(struct prodcons *b){
-  
-
-  
+// Méthode de controle d'entrer en section critique
+void controlSECTION(struct threadData *b){
   if(b->token == false) {
     pthread_mutex_lock(&b->lock);
     pthread_cond_wait(&b->tokenSignal, &b->lock);
     pthread_mutex_unlock(&b->lock);
   }
   
-  std::cout<<"Entrer : "<<getTimeStr()<<std::endl;
+  std::cout<<"Entrer : "<<getTIME()<<std::endl;
   calcul(rand()%4+1); 
-  std::cout<<"Sortie : "<<getTimeStr()<<std::endl;
+  std::cout<<"Sortie : "<<getTIME()<<std::endl;
 
 
   b->token = false; 
-  calcul(2); 
-
 }
 
-// Appel dans les autres fonctions
-// Permet d'envoyer un message à un autre processus
-// avec une socket et un appel avec send
+// Envoie de message
 void sendMessageTo(char* msg, char* ip, char* port){
 
   // ----------------------- EMETTEUR 
@@ -143,8 +137,7 @@ void sendMessageTo(char* msg, char* ip, char* port){
 // Appel dans le main
 // Création du thread receveur
 // Boucle d'attente de réception du token
-void * fonctionThreadReceveur (void * params){
-  //struct paramsFonctionThread * args = (struct paramsFonctionThread *) params;
+void * threadServeur (void * params){
   int param = (long) params;
   int ds = socket(PF_INET, SOCK_STREAM, 0);
 
@@ -153,20 +146,10 @@ void * fonctionThreadReceveur (void * params){
     exit(1); 
   }
 
-  // Attachement 
-  struct commonData * p_att;
-
-  p_att = (commonData *)shmat(param, NULL, 0); 
-
-  if((void *)p_att == (void *)-1){
-    perror("shmat");
-  }
-
-
   struct sockaddr_in server;
   server.sin_family = AF_INET;
   server.sin_addr.s_addr = INADDR_ANY;
-  server.sin_port = htons(atoi(p_att->port));
+  server.sin_port = htons(atoi(data.port));
 
   if(bind(ds, (struct sockaddr*)&server, sizeof(server)) < 0) {
     perror("Serveur : erreur bind");
@@ -201,7 +184,6 @@ void * fonctionThreadReceveur (void * params){
 
   /* boucle de traitement des messages recus */
   while(1){
-
     settmp = set;
     select(max+1, &settmp, NULL, NULL, NULL);
 
@@ -253,16 +235,16 @@ void * fonctionThreadReceveur (void * params){
       strcpy(portK, tab[2].c_str());
 
       // si père = "" 
-      if(std::string(p_att->ipPere) == std::string("") && std::string(p_att->portPere) == std::string("")){
-          if(p_att->demande == true){
+      if(std::string(data.ipPere) == std::string("") && std::string(data.portPere) == std::string("")){
+          if(data.demande == true){
             // suivant := k 
-            p_att->ipSuivant = ipK;    // ip de K
-            p_att->portSuivant = portK;   // port de K; 
+            data.ipSuivant = ipK;    // ip de K
+            data.portSuivant = portK;   // port de K; 
           }
           // sinon
           else{
             // jeton-présent := faux; 
-            p_att->token = false; 
+            data.token = false; 
             // envoyer token à k 
             char* tok = strdup("T"); 
             sendMessageTo(tok, ipK, portK);
@@ -277,26 +259,26 @@ void * fonctionThreadReceveur (void * params){
         char *m = new char[msgTMP.length() + 1];
         strcpy(m, msgTMP.c_str());
 
-        sendMessageTo(m, p_att->ipPere, p_att->portPere);
+        sendMessageTo(m, data.ipPere, data.portPere);
 
       }
       // père := k 
-      p_att->ipPere = ipK; 
-      p_att->portPere = portK; 
+      data.ipPere = ipK; 
+      data.portPere = portK; 
       
     }
     else if(msgRCV.at(0) == TOKEN_RECUS.at(0)){
       // ------------------------------------------------------
       //                    RECEPTION TOKEN
       // ------------------------------------------------------
-      std::cout<<"Token recus : "<<getTimeStr()<<std::endl;
+      std::cout<<"Token recus : "<<getTIME()<<std::endl;
       
 
       // jeton-présent := vrai 
-      p_att->token = true; 
+      data.token = true; 
 
       // GET TOKEN
-      getTOKEN(&buffer); 
+      getTOKEN(&data); 
     }
     else{
       //Afficher le message recus :
@@ -305,7 +287,6 @@ void * fonctionThreadReceveur (void * params){
 
     // Rend le verou
     mutexOnSHM.unlock(); 
-
   }
 
   close (ds); // atteignable si on sort de la boucle infinie.
@@ -318,7 +299,7 @@ void * fonctionThreadReceveur (void * params){
 // Appel dans le main
 // Prend le token, rentre en section critique 
 // et passe le token au suivant
-void* fonctionThreadEmetteur (void * params){
+void* threadCalculateur (void * params){
   int param = (long) params;
 
   char* msg = strdup("send"); 
@@ -326,13 +307,13 @@ void* fonctionThreadEmetteur (void * params){
   srand(time(NULL));
 
   // Attachement 
-  struct commonData * p_att;
+  // struct commonData * p_att;
 
-  p_att = (commonData *)shmat(param, NULL, 0); 
+  // p_att = (commonData *)shmat(param, NULL, 0); 
 
-  if((void *)p_att == (void *)-1){
-    perror("shmat");
-  }
+  // if((void *)p_att == (void *)-1){
+  //   perror("shmat");
+  // }
 
 
   while(1){
@@ -346,26 +327,26 @@ void* fonctionThreadEmetteur (void * params){
     mutexOnSHM.lock(); 
 
     // demande = true;  
-    p_att->demande = true; 
+    data.demande = true; 
 
     // si pere == "" 
-    if(std::string(p_att->ipPere) == std::string("") && std::string(p_att->portPere) == std::string("")){
+    if(std::string(data.ipPere) == std::string("") && std::string(data.portPere) == std::string("")){
       // alors entrée en section critique
 
     }
     // sinon 
     else{
       //   début envoyer Req(i) à père;
-      std::string msgTMP = "D/" + std::string(p_att->ip) + "/" + std::string(p_att->port)+ "/"; 
+      std::string msgTMP = "D/" + std::string(data.ip) + "/" + std::string(data.port)+ "/"; 
 
       char *m = new char[msgTMP.length() + 1];
       strcpy(m, msgTMP.c_str());
 
-      sendMessageTo(m, p_att->ipPere, p_att->portPere); 
+      sendMessageTo(m, data.ipPere, data.portPere); 
 
       //   père = "" 
-      p_att->ipPere = strdup(""); 
-      p_att->portPere = strdup("");
+      data.ipPere = strdup(""); 
+      data.portPere = strdup("");
 
     }
 
@@ -375,39 +356,26 @@ void* fonctionThreadEmetteur (void * params){
 
     mutexOnSHM.unlock();
 
-    // WAIT TOKEN
-
-
-    waitTOKEN(&buffer);
-
-
-    // ------------------------------------------------------
-    //              ENTRER EN SECTION CRITIQUE
-    // ------------------------------------------------------
-    // Calcule dans la section critique 
-
-    // ------------------------------------------------------
-    //              LIBERATION DE LA RESOURCE
-    // ------------------------------------------------------
+    controlSECTION(&data);
+    
     // Prendre la verrou
-
     mutexOnSHM.lock(); 
    
-    p_att->demande = false; 
+    data.demande = false; 
 
     // si suivant != "" 
-    if(std::string(p_att->ipSuivant) != std::string("") && std::string(p_att->portSuivant) != std::string("")){
+    if(std::string(data.ipSuivant) != std::string("") && std::string(data.portSuivant) != std::string("")){
       //   envoyer token à suivant;
       std::cout<<"Emetteur : Je passe le jeton au suivant"<<std::endl;
       //sendToken(); 
       char* m = strdup("T"); 
       //mutexTOKKEN.unlock(); 
-      sendMessageTo(m, p_att->ipSuivant, p_att->portSuivant); 
+      sendMessageTo(m, data.ipSuivant, data.portSuivant); 
       //   jeton-présent := faux;
-      p_att->token = false; 
+      data.token = false; 
       //   suivant := nil 
-      p_att->ipSuivant = strdup("");
-      p_att->portSuivant = strdup(""); 
+      data.ipSuivant = strdup("");
+      data.portSuivant = strdup(""); 
     }
 
     // Rend le verou
@@ -421,101 +389,66 @@ void* fonctionThreadEmetteur (void * params){
 // Initialisation, création des threads
 int main(int argc, char * argv[]){
   // Vérifier les paramètres
-  if (argc < 6){
-    printf("utilisation: %s  id ip port pere_ip pere_port \n", argv[0]);
+  if (argc < 5){
+    printf("utilisation: %s ip port pere_ip pere_port \n", argv[0]);
     return 1;
   }   
 
-  char * ipProcessus = argv[2]; 
-  char * portProcessus = argv[3]; 
-  char * ipPere = argv[4];
-  char * portPere = argv[5];
-
-  
-  int valeurInit = 1; 
-  char* pourCle = strdup("pourCle.txt"); 
-  int entierPourCle = atoi(argv[1]); 
-  
+  char* ipProcessus = argv[1]; 
+  char* portProcessus = argv[2]; 
+  char* ipPere = argv[3];
+  char* portPere = argv[4];
 
   bool start = (std::string(ipPere) == std::string(ipProcessus) && std::string(portPere) == std::string(portProcessus)); 
 
-
-  // ----------------------- SHM 
-  int clesSHM = ftok(pourCle, entierPourCle);
-
-  long idSHM = shmget(clesSHM, size_t(sizeof(SHM)) , IPC_CREAT | 0666);
-  
-  if(idSHM == -1){
-    perror("erreur semget : ");
-    exit(-1);
-  }
-
-  struct commonData * p_att;
-
-  p_att = (commonData *)shmat(idSHM, NULL, 0); 
-
-  if((void *)p_att == (void *)-1){
-    perror("shmat");
-  }
-
-  p_att->ip = ipProcessus; 
-  p_att->port = portProcessus; 
+  data.ip = ipProcessus; 
+  data.port = portProcessus; 
 
   // ----------------------- Initialisation
   // père := 1
-  p_att->ipPere = ipPere; 
-  p_att->portPere = portPere; 
+  data.ipPere = ipPere; 
+  data.portPere = portPere; 
 
-  // suivant := nil 
-  p_att->ipSuivant = strdup(""); 
-  p_att->portSuivant = strdup(""); 
+  // suivant := null 
+  data.ipSuivant = strdup(""); 
+  data.portSuivant = strdup(""); 
   
   // demande := faux 
-  p_att->demande = false;
+  data.demande = false; 
 
   // si père = i // Soit meme
-  if(std::string(ipPere) == std::string(ipProcessus) && std::string(portPere) == std::string(portProcessus)) {
+  if(start) {
     std::cout<<"Je commence !"<<std::endl; 
     //   alors debut jeton-présent := vrai;
-    p_att->token = true; 
+    data.token = true; 
     //   père := null 
-    p_att->ipPere = strdup(""); 
-    p_att->portPere = strdup(""); 
+    data.ipPere = strdup("");
+    data.portPere = strdup("");
   }
   // sinon 
-  else {
-    std::cout<<"Je commence pas !"<<std::endl; 
-    // jeton-présent :=faux 
-    p_att->token = false;
+  else { 
+    data.token = false; 
   }
 
+  init(&data, start);
 
   // -------------- Création des deux threads Emetteur/Receveur
-  pthread_t threadReceveur;
-  pthread_t threadEmetteur;
-
-
-  /**********************  CV ***********************/
-  void * retval;
-  init(&buffer, start);
-  
+  pthread_t threadReceveur, threadEmetteur;
 
   // Création du thread Receveur 
-  if (pthread_create(&threadReceveur, NULL, fonctionThreadReceveur, (void *) idSHM) != 0){
+  if (pthread_create(&threadReceveur, NULL, threadServeur, NULL) != 0){
     perror("erreur creation thread receveur");
     exit(1);
   }
 
   // Création du thread Emetteur
-  if (pthread_create(&threadEmetteur, NULL, fonctionThreadEmetteur,  (void *) idSHM) != 0){
+  if (pthread_create(&threadEmetteur, NULL, threadCalculateur,  NULL) != 0){
     perror("erreur creation thread emetteur");
     exit(1);
   }
 
-  pthread_join(threadReceveur, &retval); 
-  pthread_join(threadEmetteur, &retval);
-
+  pthread_join(threadReceveur, NULL); 
+  pthread_join(threadEmetteur, NULL);
 
   return 0;
-
 }
