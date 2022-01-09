@@ -10,6 +10,7 @@
 // ./processus 192.168.1.64 6001 192.168.1.64 6001
 // ./processus 192.168.1.64 6002 192.168.1.64 6001
 // ./processus 192.168.1.64 6003 192.168.1.64 6001
+// ./processus 192.168.1.64 6004 192.168.1.64 6001
 
 #include <vector>
 #include <iostream>
@@ -27,10 +28,6 @@
 #include <mutex>
 #include "calcul.h"
 
-#define MAX_BUFFER_SIZE 16000
-
-std::mutex mutexOnSHM;
-
 struct threadData {
   bool token; 
   bool demande; 
@@ -42,6 +39,7 @@ struct threadData {
   char* ipPere;
   char* portPere;
 
+  std::mutex mtx;
   pthread_mutex_t lock; 
   pthread_cond_t tokenSignal;
 
@@ -65,7 +63,6 @@ void init(struct threadData * b, const bool & start){
 // lors de la reception du token
 void getTOKEN(struct threadData *b){
   pthread_mutex_lock(&b->lock);
-  std::cout<<"Signal"<<std::endl;
   pthread_cond_signal(&b->tokenSignal);
   pthread_mutex_unlock(&b->lock);
 }
@@ -78,10 +75,9 @@ void controlSECTION(struct threadData *b){
     pthread_mutex_unlock(&b->lock);
   }
   
-  std::cout<<"Entrer : "<<getTIME()<<std::endl;
-  calcul(rand()%4+1); 
-  std::cout<<"Sortie : "<<getTIME()<<std::endl;
-
+  std::cout<<"  Entrer : "<<getTIME()<<std::endl;
+  calcul(rand()%4+1);
+  std::cout<<"    Exit : "<<getTIME()<<std::endl;
 
   b->token = false; 
 }
@@ -134,9 +130,6 @@ void sendMessageTo(char* msg, char* ip, char* port){
   shutdown(ds, SHUT_WR); 
 }
 
-// Appel dans le main
-// Création du thread receveur
-// Boucle d'attente de réception du token
 void * threadServeur (void * params){
   int param = (long) params;
   int ds = socket(PF_INET, SOCK_STREAM, 0);
@@ -165,7 +158,7 @@ void * threadServeur (void * params){
     exit (1);
   }
   
-  char messagesRecus[MAX_BUFFER_SIZE];
+  char messagesRecus[16000];
   std::string DEMANDE_RECUS = "D";
   std::string TOKEN_RECUS = "T";
   int name_size = 0;
@@ -206,7 +199,7 @@ void * threadServeur (void * params){
     std::string msgRCV(messagesRecus); 
 
     // Prendre le verrou
-    mutexOnSHM.lock(); 
+    data.mtx.lock(); 
 
     if(msgRCV.at(0) == DEMANDE_RECUS.at(0)){
       // ------------------------------------------------------
@@ -271,9 +264,8 @@ void * threadServeur (void * params){
       // ------------------------------------------------------
       //                    RECEPTION TOKEN
       // ------------------------------------------------------
-      std::cout<<"Token recus : "<<getTIME()<<std::endl;
+      //std::cout<<"Token : "<<getTIME()<<std::endl;
       
-
       // jeton-présent := vrai 
       data.token = true; 
 
@@ -286,7 +278,7 @@ void * threadServeur (void * params){
     }
 
     // Rend le verou
-    mutexOnSHM.unlock(); 
+    data.mtx.unlock(); 
   }
 
   close (ds); // atteignable si on sort de la boucle infinie.
@@ -306,25 +298,9 @@ void* threadCalculateur (void * params){
 
   srand(time(NULL));
 
-  // Attachement 
-  // struct commonData * p_att;
-
-  // p_att = (commonData *)shmat(param, NULL, 0); 
-
-  // if((void *)p_att == (void *)-1){
-  //   perror("shmat");
-  // }
-
-
   while(1){
-
-    // ------------------------------------------------------
-    //          DEMANDE D'ENTRER EN SECTION CRITIQUE
-    // ------------------------------------------------------
-
     // Prendre la verrou
-   
-    mutexOnSHM.lock(); 
+    data.mtx.lock(); 
 
     // demande = true;  
     data.demande = true; 
@@ -347,26 +323,23 @@ void* threadCalculateur (void * params){
       //   père = "" 
       data.ipPere = strdup(""); 
       data.portPere = strdup("");
-
     }
 
 
     // Rend le verou
-
-
-    mutexOnSHM.unlock();
+    data.mtx.unlock();
 
     controlSECTION(&data);
-    
+
     // Prendre la verrou
-    mutexOnSHM.lock(); 
+    data.mtx.lock(); 
    
     data.demande = false; 
 
     // si suivant != "" 
     if(std::string(data.ipSuivant) != std::string("") && std::string(data.portSuivant) != std::string("")){
       //   envoyer token à suivant;
-      std::cout<<"Emetteur : Je passe le jeton au suivant"<<std::endl;
+      //std::cout<<"Token -> "<<std::string(data.ipSuivant)<<std::string(data.portSuivant)<<std::endl;
       //sendToken(); 
       char* m = strdup("T"); 
       //mutexTOKKEN.unlock(); 
@@ -380,7 +353,7 @@ void* threadCalculateur (void * params){
 
     // Rend le verou
 
-    mutexOnSHM.unlock(); 
+    data.mtx.unlock(); 
 
   }
 }
@@ -418,7 +391,7 @@ int main(int argc, char * argv[]){
 
   // si père = i // Soit meme
   if(start) {
-    std::cout<<"Je commence !"<<std::endl; 
+    std::cout<<"Start"<<std::endl; 
     //   alors debut jeton-présent := vrai;
     data.token = true; 
     //   père := null 
@@ -427,6 +400,7 @@ int main(int argc, char * argv[]){
   }
   // sinon 
   else { 
+    std::cout<<"Wait"<<std::endl; 
     data.token = false; 
   }
 
